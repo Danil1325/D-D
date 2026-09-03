@@ -13,3 +13,5 @@ back/**/obj/
 .git.front-history/
 *.user
 *.suo
+
+.git.back-history/
