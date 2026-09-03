@@ -1,0 +1,15 @@
+# Frontend dependencies and generated output
+front/node_modules/
+front/dist/
+front/*.local
+
+# Backend build output
+back/**/bin/
+back/**/obj/
+
+# Local IDE and environment files
+.vscode/
+.idea/
+.git.front-history/
+*.user
+*.suo
