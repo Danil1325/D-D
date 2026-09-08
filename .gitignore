@@ -1,0 +1,25 @@
+# Build output
+bin/
+obj/
+
+# IDE files
+.vs/
+.vscode/
+*.user
+*.suo
+
+# Rider
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# User secrets (Phase 6+ connection strings, JWT keys, etc. should never be committed)
+appsettings.*.local.json
+secrets.json
+
+# Later phases
+node_modules/
+dist/
+build/

@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>DnDGame.MockData</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DnDGame.Domain\DnDGame.Domain.csproj" />
+    <ProjectReference Include="..\DnDGame.BusinessLayer\DnDGame.BusinessLayer.csproj" />
+  </ItemGroup>
+
+  <!--
+    Phase 6 note: DataAccessLayer will be a sibling project to this one, implementing
+    the exact same BusinessLayer interfaces via EF Core. Program.cs in the API project
+    will register whichever one is active — this project is not meant to be deleted,
+    just swapped out at the DI registration line.
+  -->
+
+</Project>

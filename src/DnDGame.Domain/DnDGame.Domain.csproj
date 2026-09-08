@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>DnDGame.Domain</RootNamespace>
+  </PropertyGroup>
+
+  <!--
+    Intentionally no PackageReference elements here.
+    Domain must stay a plain C# class library for the whole mock-data phase:
+    no EF Core, no database attributes, no dependency on any other project.
+    DataAccessLayer (Phase 6) will reference this project, not the other way around.
+  -->
+
+</Project>

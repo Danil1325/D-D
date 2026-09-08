@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>DnDGame.BusinessLayer</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DnDGame.Domain\DnDGame.Domain.csproj" />
+  </ItemGroup>
+
+  <!--
+    Repository interfaces (IRaceRepository, ICharacterRepository, etc.) live in this
+    project's Services/Interfaces folder, NOT in MockData or DataAccessLayer.
+    That is what lets MockData (now) and DataAccessLayer (Phase 6) both implement the
+    same contracts without BusinessLayer ever depending on either of them.
+  -->
+
+</Project>

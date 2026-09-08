@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>DnDGame.API</RootNamespace>
+    <UserSecretsId>dnd-game-api-secrets</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="6.6.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DnDGame.BusinessLayer\DnDGame.BusinessLayer.csproj" />
+    <ProjectReference Include="..\DnDGame.MockData\DnDGame.MockData.csproj" />
+  </ItemGroup>
+
+  <!--
+    Phase 6 note: once DataAccessLayer exists, add a ProjectReference to it here and
+    remove the MockData reference (or keep both temporarily while comparing behavior —
+    see Phase 8 in the plan). Only Program.cs's DI registration needs to change.
+  -->
+
+</Project>
