@@ -7,10 +7,10 @@ See `DnD-Game-Backend-Plan.md` for the full design document — architecture rat
 entity list, enums, dice/combat rules, story/choice system, and the complete phase-by-phase
 roadmap. This README only tracks where the code currently stands.
 
-## Current status: Phase 0 complete (solution scaffolding)
+## Current status: Phase 1 complete (Domain models and enums)
 
 - [x] Phase 0 — Solution & project scaffolding
-- [ ] Phase 1 — Domain models and enums
+- [x] Phase 1 — Domain models and enums
 - [ ] Phase 2 — Mock data
 - [ ] Phase 3 — Business/game logic
 - [ ] Phase 4 — API / controllers
@@ -27,13 +27,17 @@ roadmap. This README only tracks where the code currently stands.
 ```
 DnDGame.sln
 ├── src/
-│   ├── DnDGame.Domain/          Entities + enums. Plain C#, zero dependencies.
+│   ├── DnDGame.Domain/          Entities + enums. Plain C#, zero dependencies. (Phase 1 ✓)
 │   ├── DnDGame.BusinessLayer/   Services, DTOs, game rules, repository interfaces.
 │   ├── DnDGame.MockData/        In-memory implementations of those interfaces (Phases 2-5).
 │   └── DnDGame.API/             ASP.NET Core Web API — controllers, Program.cs, Swagger.
 └── tests/
     └── DnDGame.Tests/           xUnit tests for BusinessLayer.
 ```
+
+`DnDGame.Domain` currently contains 15 entities and 7 enums — see
+`DnD-Game-Backend-Plan.md` for the full breakdown, or just browse
+`src/DnDGame.Domain/Entities/` and `src/DnDGame.Domain/Enums/` directly.
 
 `DnDGame.DataAccessLayer` is added in Phase 6 as a sibling to `MockData`, implementing the
 same `BusinessLayer` interfaces via EF Core + PostgreSQL. See the plan document's
