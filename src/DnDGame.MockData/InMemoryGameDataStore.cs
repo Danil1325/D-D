@@ -1,0 +1,56 @@
+using DnDGame.Domain.Entities.Characters;
+using DnDGame.Domain.Entities.Classes;
+using DnDGame.Domain.Entities.Enemies;
+using DnDGame.Domain.Entities.Game;
+using DnDGame.Domain.Entities.Portraits;
+using DnDGame.Domain.Entities.Races;
+using DnDGame.Domain.Entities.Talents;
+
+namespace DnDGame.MockData;
+
+/// <summary>
+/// The in-memory "database" for the mock-data phase. One instance of this is
+/// registered as a DI singleton and shared by every Mock*Repository, so data
+/// written by one request (e.g. creating a character) is still there for the
+/// next request — exactly like a real database would behave, just without one.
+///
+/// Storage here is deliberately flat and normalized (one list per entity type,
+/// linked only by the same FK ints the Domain entities already carry) rather than
+/// pre-linked object graphs. Mock*Repository classes are responsible for "joining"
+/// related rows together before returning them — this mirrors what EF Core's
+/// .Include() will do automatically once DataAccessLayer replaces this in Phase 7.
+/// </summary>
+public class InMemoryGameDataStore
+{
+    // --- Reference data (seeded once at startup) ---
+    public List<Race> Races { get; } = new();
+    public List<RaceTrait> RaceTraits { get; } = new();
+    public List<RaceAttributeRange> RaceAttributeRanges { get; } = new();
+    public List<CharacterClass> Classes { get; } = new();
+    public List<ClassFeature> ClassFeatures { get; } = new();
+    public List<CharacterPortrait> Portraits { get; } = new();
+    public List<Talent> Talents { get; } = new();
+    public List<Enemy> Enemies { get; } = new();
+    public List<Adventure> Adventures { get; } = new();
+    public List<StoryNode> StoryNodes { get; } = new();
+    public List<Choice> Choices { get; } = new();
+
+    // --- Runtime / gameplay data (empty until Phase 3 starts creating characters) ---
+    public List<PlayerCharacter> Characters { get; } = new();
+    public List<CharacterTalent> CharacterTalents { get; } = new();
+    public List<GameSession> GameSessions { get; } = new();
+    public List<SessionLogEntry> SessionLogEntries { get; } = new();
+
+    // Id counters only for the runtime tables above — every reference-data row gets
+    // an explicit, hardcoded Id from its seed data instead, so cross-references
+    // between seed files (e.g. a Choice pointing at an Enemy) are predictable.
+    private int _nextCharacterId = 1;
+    private int _nextCharacterTalentId = 1;
+    private int _nextGameSessionId = 1;
+    private int _nextLogEntryId = 1;
+
+    public int GetNextCharacterId() => _nextCharacterId++;
+    public int GetNextCharacterTalentId() => _nextCharacterTalentId++;
+    public int GetNextGameSessionId() => _nextGameSessionId++;
+    public int GetNextLogEntryId() => _nextLogEntryId++;
+}

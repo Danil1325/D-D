@@ -9,7 +9,7 @@ namespace DnDGame.Domain.Entities.Game;
 /// are meaningful depends on OutcomeType:
 ///
 ///   DiceCheck          -> RequiredAttribute, DifficultyValue, NextNodeId (success), FailureNodeId
-///   StartCombat        -> EnemyId (an immediate fight right here)
+///   StartCombat        -> EnemyId (an immediate fight right here), NextNodeId (after victory)
 ///   TriggerEncounter   -> NextNodeId (branch to another node, which may itself be Combat)
 ///   GiveReward         -> RewardXp, RewardText, NextNodeId
 ///   CauseDamage        -> DamageAmount, NextNodeId
@@ -53,9 +53,10 @@ public class Choice : BaseEntity
     public string? InfoText { get; set; }
 
     /// <summary>
-    /// The node to go to next. Used as the "success" destination for DiceCheck, and
-    /// as the sole destination for TriggerEncounter, GiveReward, CauseDamage,
-    /// ProvideInformation, and ChangeStoryPath.
+    /// The node to go to next. Used as the "success" destination for DiceCheck; as
+    /// the destination reached immediately for TriggerEncounter, GiveReward,
+    /// CauseDamage, ProvideInformation, and ChangeStoryPath; and, for StartCombat, as
+    /// where the story continues once the enemy identified by EnemyId is defeated.
     /// </summary>
     public int? NextNodeId { get; set; }
     public StoryNode? NextNode { get; set; }

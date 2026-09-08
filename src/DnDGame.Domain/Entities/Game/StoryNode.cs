@@ -23,6 +23,17 @@ public class StoryNode : BaseEntity
     public int? EnemyId { get; set; }
     public Enemy? Enemy { get; set; }
 
+    /// <summary>
+    /// Only meaningful when NodeType is Combat — which node the story continues to
+    /// after the enemy here is defeated. Design decision (Phase 2): this field was
+    /// missing from the original Phase 1 model; building a real branching adventure
+    /// surfaced the gap, since without it a Combat node would be a dead end with no
+    /// way back into the narrative. Mirrors Choice.NextNodeId's existing pattern.
+    /// Narrative nodes route via their Choices instead; Ending nodes leave this null.
+    /// </summary>
+    public int? NextNodeId { get; set; }
+    public StoryNode? NextNode { get; set; }
+
     /// <summary>Only meaningful for Narrative nodes — the options presented to the player.</summary>
     public ICollection<Choice> Choices { get; set; } = new List<Choice>();
 }
