@@ -1,3 +1,5 @@
+using Xunit;
+
 namespace DnDGame.Tests;
 
 // A single trivial test confirming the test project is wired up correctly
