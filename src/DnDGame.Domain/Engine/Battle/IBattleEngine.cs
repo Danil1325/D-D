@@ -18,6 +18,8 @@ public interface IBattleEngine
 
     EngineResult<BattleState> ExecuteEnemyTurn(BattleContext battleContext);
 
+    EngineResult<bool> MarkRewardsGranted(BattleContext battleContext);
+
     EngineResult<BattleStatus> CheckBattleStatus(BattleContext battleContext);
 
     bool CheckVictory(BattleState battleState);

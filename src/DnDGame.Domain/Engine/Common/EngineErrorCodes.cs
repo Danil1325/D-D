@@ -14,4 +14,5 @@ public static class EngineErrorCodes
     public const string MissingCombatRule = "MISSING_COMBAT_RULE";
     public const string InvalidDice = "INVALID_DICE";
     public const string ConsequenceAlreadyApplied = "CONSEQUENCE_ALREADY_APPLIED";
+    public const string RewardsAlreadyGranted = "REWARDS_ALREADY_GRANTED";
 }

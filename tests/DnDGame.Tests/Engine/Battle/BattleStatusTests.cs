@@ -18,6 +18,52 @@ namespace DnDGame.Tests.Engine.Battle;
 public class BattleStatusTests
 {
     [Fact]
+    public void BattleStartsCorrectly()
+    {
+        var context = new BattleContext(
+            new PlayerCharacter { CurrentHealth = 15, MaxHealth = 20 },
+            new Enemy { Health = 12 },
+            new BattleState());
+        var engine = CreateEngine(TurnType.Player);
+
+        var result = engine.StartBattle(context);
+
+        Assert.True(result.Success);
+        Assert.NotEqual(Guid.Empty, context.BattleState.BattleId);
+        Assert.Equal(15, context.BattleState.PlayerHealth);
+        Assert.Equal(20, context.BattleState.PlayerMaxHealth);
+        Assert.Equal(12, context.BattleState.EnemyHealth);
+        Assert.Equal(TurnType.Player, context.BattleState.CurrentTurn);
+        Assert.Equal(BattleStatus.PlayerTurn, context.BattleState.BattleStatus);
+    }
+
+    [Fact]
+    public void EnemyCanStartBattle()
+    {
+        var context = CreateContext(playerHealth: 10, enemyHealth: 10);
+        var engine = CreateEngine(TurnType.Enemy);
+
+        var result = engine.StartBattle(context);
+
+        Assert.True(result.Success);
+        Assert.Equal(TurnType.Enemy, context.BattleState.CurrentTurn);
+        Assert.Equal(BattleStatus.EnemyTurn, context.BattleState.BattleStatus);
+    }
+
+    [Fact]
+    public void PlayerCanStartBattle()
+    {
+        var context = CreateContext(playerHealth: 10, enemyHealth: 10);
+        var engine = CreateEngine(TurnType.Player);
+
+        var result = engine.StartBattle(context);
+
+        Assert.True(result.Success);
+        Assert.Equal(TurnType.Player, context.BattleState.CurrentTurn);
+        Assert.Equal(BattleStatus.PlayerTurn, context.BattleState.BattleStatus);
+    }
+
+    [Fact]
     public void PlayerDefeatWorks()
     {
         var context = CreateContext(playerHealth: 0, enemyHealth: 10);
@@ -63,6 +109,35 @@ public class BattleStatusTests
         Assert.Single(context.BattleState.BattleLog);
     }
 
+    [Fact]
+    public void RewardsCannotBeGrantedTwice()
+    {
+        var context = CreateContext(playerHealth: 10, enemyHealth: 0);
+        var engine = CreateEngine();
+        engine.CheckBattleStatus(context);
+
+        var firstAttempt = engine.MarkRewardsGranted(context);
+        var secondAttempt = engine.MarkRewardsGranted(context);
+
+        Assert.True(firstAttempt.Success);
+        Assert.True(context.BattleState.RewardsGranted);
+        Assert.False(secondAttempt.Success);
+        Assert.Equal(EngineErrorCodes.RewardsAlreadyGranted, secondAttempt.ErrorCode);
+    }
+
+    [Fact]
+    public void CannotGrantRewardsBeforeVictory()
+    {
+        var context = CreateContext(playerHealth: 10, enemyHealth: 10);
+        var engine = CreateEngine();
+
+        var result = engine.MarkRewardsGranted(context);
+
+        Assert.False(result.Success);
+        Assert.Equal(EngineErrorCodes.InvalidAction, result.ErrorCode);
+        Assert.False(context.BattleState.RewardsGranted);
+    }
+
     private static BattleContext CreateContext(int playerHealth, int enemyHealth)
     {
         return new BattleContext(
@@ -77,11 +152,11 @@ public class BattleStatusTests
             });
     }
 
-    private static BattleEngine CreateEngine()
+    private static BattleEngine CreateEngine(TurnType? firstTurn = null)
     {
         return new BattleEngine(
             new TurnEngineStub(),
-            new InitiativeEngineStub(),
+            new InitiativeEngineStub(firstTurn),
             new CardEngineStub(),
             new EffectEngineStub(),
             new DamageCalculator(new AdditiveDamageRule()),
@@ -95,9 +170,21 @@ public class BattleStatusTests
 
     private sealed class TurnEngineStub : ITurnEngine
     {
-        public EngineResult<TurnResult> StartPlayerTurn(BattleState state) => Result(state);
+        public EngineResult<TurnResult> StartPlayerTurn(BattleState state)
+        {
+            state.CurrentTurn = TurnType.Player;
+            state.BattleStatus = BattleStatus.PlayerTurn;
+            return Result(state);
+        }
+
         public EngineResult<TurnResult> EndPlayerTurn(BattleState state) => Result(state);
-        public EngineResult<TurnResult> StartEnemyTurn(BattleState state) => Result(state);
+
+        public EngineResult<TurnResult> StartEnemyTurn(BattleState state)
+        {
+            state.CurrentTurn = TurnType.Enemy;
+            state.BattleStatus = BattleStatus.EnemyTurn;
+            return Result(state);
+        }
         public EngineResult<TurnResult> EndEnemyTurn(BattleState state) => Result(state);
         public EngineResult<TurnResult> NextTurn(BattleState state) => Result(state);
 
@@ -111,8 +198,18 @@ public class BattleStatusTests
 
     private sealed class InitiativeEngineStub : IInitiativeEngine
     {
+        private readonly TurnType? _firstTurn;
+
+        public InitiativeEngineStub(TurnType? firstTurn)
+        {
+            _firstTurn = firstTurn;
+        }
+
         public EngineResult<InitiativeResult> DetermineFirstTurn(BattleContext context) =>
-            EngineResult<InitiativeResult>.Fail("Not used.", EngineErrorCodes.InvalidAction);
+            _firstTurn is { } firstTurn
+                ? EngineResult<InitiativeResult>.Ok(
+                    new InitiativeResult(firstTurn, null, null, null, null))
+                : EngineResult<InitiativeResult>.Fail("Not used.", EngineErrorCodes.InvalidAction);
     }
 
     private sealed class CardEngineStub : ICardEngine

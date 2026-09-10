@@ -214,6 +214,28 @@ public sealed class BattleEngine : IBattleEngine
                 turnResult.ErrorCode ?? EngineErrorCodes.InvalidAction);
     }
 
+    public EngineResult<bool> MarkRewardsGranted(BattleContext battleContext)
+    {
+        var battleState = battleContext.BattleState;
+
+        if (battleState.RewardsGranted)
+        {
+            return EngineResult<bool>.Fail(
+                "Rewards have already been granted for this battle.",
+                EngineErrorCodes.RewardsAlreadyGranted);
+        }
+
+        if (battleState.BattleStatus != BattleStatus.Victory)
+        {
+            return EngineResult<bool>.Fail(
+                "Rewards can only be granted after victory.",
+                EngineErrorCodes.InvalidAction);
+        }
+
+        battleState.RewardsGranted = true;
+        return EngineResult<bool>.Ok(true);
+    }
+
     public EngineResult<BattleStatus> CheckBattleStatus(BattleContext battleContext)
     {
         if (IsBattleFinished(battleContext.BattleState))
