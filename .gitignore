@@ -2,6 +2,9 @@
 bin/
 obj/
 
+# Local .NET CLI and NuGet cache (used only by local builds/restores)
+.dotnet-cli/
+
 # IDE files
 .vs/
 .vscode/
