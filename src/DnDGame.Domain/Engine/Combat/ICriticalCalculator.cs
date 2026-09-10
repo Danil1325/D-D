@@ -1,11 +1,12 @@
-using DnDGame.Domain.Engine.Battle;
+using DnDGame.Domain.Engine.Common;
+using DnDGame.Domain.Engine.Dice;
 
 namespace DnDGame.Domain.Engine.Combat;
 
 /// <summary>
-/// Contract for evaluating whether an attack is a critical hit.
+/// Evaluates a pre-rolled dice result for a critical outcome.
 /// </summary>
 public interface ICriticalCalculator
 {
-    bool IsCriticalHit(BattleContext battleContext);
+    EngineResult<CriticalResult> Calculate(DiceResult diceResult);
 }

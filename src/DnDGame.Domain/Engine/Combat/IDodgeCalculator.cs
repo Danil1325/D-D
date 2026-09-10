@@ -1,11 +1,11 @@
-using DnDGame.Domain.Engine.Battle;
+using DnDGame.Domain.Engine.Common;
 
 namespace DnDGame.Domain.Engine.Combat;
 
 /// <summary>
-/// Contract for evaluating whether an attack is dodged.
+/// Calculates the dodge outcome from a complete, already-resolved combat input.
 /// </summary>
 public interface IDodgeCalculator
 {
-    bool IsDodged(BattleContext battleContext);
+    EngineResult<DodgeResult> Calculate(DodgeRequest request);
 }

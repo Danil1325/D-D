@@ -184,12 +184,14 @@ public class EnemyTurnTests
 
     private sealed class DodgeCalculatorStub : IDodgeCalculator
     {
-        public bool IsDodged(BattleContext battleContext) => false;
+        public EngineResult<DodgeResult> Calculate(DodgeRequest request) =>
+            EngineResult<DodgeResult>.Ok(new DodgeResult(DodgeOutcome.Hit));
     }
 
     private sealed class CriticalCalculatorStub : ICriticalCalculator
     {
-        public bool IsCriticalHit(BattleContext battleContext) => false;
+        public EngineResult<CriticalResult> Calculate(DiceResult diceResult) =>
+            EngineResult<CriticalResult>.Ok(new CriticalResult(CriticalOutcome.NormalHit, diceResult));
     }
 
     private sealed class DiceEngineStub : IDiceEngine
