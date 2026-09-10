@@ -237,10 +237,20 @@ public sealed class BattleEngine : IBattleEngine
     private EngineResult<BattleState> ExecuteEnemyAttack(BattleContext battleContext)
     {
         var battleState = battleContext.BattleState;
-        var damageResult = _damageCalculator.Calculate(
-            battleContext.Enemy.DamageAmount,
-            defense: 0,
-            battleState.PlayerBlock);
+        var damageCalculation = _damageCalculator.Calculate(
+            new DamageRequest(
+                baseDamage: battleContext.Enemy.DamageAmount,
+                strength: 0,
+                defense: 0,
+                block: battleState.PlayerBlock));
+        if (!damageCalculation.Success || damageCalculation.Data is null)
+        {
+            return EngineResult<BattleState>.Fail(
+                damageCalculation.Message,
+                damageCalculation.ErrorCode ?? EngineErrorCodes.MissingCombatRule);
+        }
+
+        var damageResult = damageCalculation.Data;
 
         battleState.PlayerBlock = damageResult.RemainingBlock;
         battleState.PlayerHealth = Math.Max(0, battleState.PlayerHealth - damageResult.FinalDamage);

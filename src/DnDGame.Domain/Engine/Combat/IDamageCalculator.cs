@@ -1,9 +1,11 @@
+using DnDGame.Domain.Engine.Common;
+
 namespace DnDGame.Domain.Engine.Combat;
 
 /// <summary>
-/// Calculates damage for a single hit without applying it to battle state.
+/// Calculates damage from a complete, already-resolved combat input.
 /// </summary>
 public interface IDamageCalculator
 {
-    DamageResult Calculate(int attack, int defense, int block);
+    EngineResult<DamageResult> Calculate(DamageRequest request);
 }

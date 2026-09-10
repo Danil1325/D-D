@@ -79,7 +79,7 @@ public class EnemyTurnTests
             new InitiativeEngineStub(),
             new CardEngineStub(),
             new EffectEngineStub(),
-            new DamageCalculator(),
+            new DamageCalculator(new AdditiveDamageRule()),
             new DodgeCalculatorStub(),
             new CriticalCalculatorStub(),
             new DiceEngineStub(),
