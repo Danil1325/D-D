@@ -2,6 +2,7 @@ using DnDGame.Domain.Engine.Battle;
 using DnDGame.Domain.Engine.Deck;
 using DnDGame.Domain.Engine.Effects;
 using DnDGame.Domain.Engine.Enums;
+using DnDGame.Domain.Engine.Hand;
 using DnDGame.Domain.Engine.Turn;
 using Xunit;
 
@@ -11,7 +12,32 @@ public class TurnEngineTests
 {
     private readonly ITurnEngine _turnEngine = new TurnEngine(
         new DeckEngineStub(),
+        new HandEngineStub(),
         new EffectEngineStub());
+
+    [Fact]
+    public void PlayerTurnStartsCorrectly()
+    {
+        var battleState = CreateBattleState();
+
+        var result = _turnEngine.StartPlayerTurn(battleState);
+
+        Assert.True(result.Success);
+        Assert.Equal(TurnType.Player, battleState.CurrentTurn);
+        Assert.Equal(BattleStatus.PlayerTurn, battleState.BattleStatus);
+    }
+
+    [Fact]
+    public void EnemyTurnStartsCorrectly()
+    {
+        var battleState = CreateBattleState();
+
+        var result = _turnEngine.StartEnemyTurn(battleState);
+
+        Assert.True(result.Success);
+        Assert.Equal(TurnType.Enemy, battleState.CurrentTurn);
+        Assert.Equal(BattleStatus.EnemyTurn, battleState.BattleStatus);
+    }
 
     [Fact]
     public void TurnNumberIncreasesCorrectly()
@@ -82,7 +108,10 @@ public class TurnEngineTests
         public void DrawCardsForPlayerTurn(BattleState battleState)
         {
         }
+    }
 
+    private sealed class HandEngineStub : IHandEngine
+    {
         public void DiscardHand(BattleState battleState)
         {
         }

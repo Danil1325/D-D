@@ -2,6 +2,7 @@ using DnDGame.Domain.Engine.Cards;
 using DnDGame.Domain.Engine.Combat;
 using DnDGame.Domain.Engine.Common;
 using DnDGame.Domain.Engine.Dice;
+using DnDGame.Domain.Engine.EnemyActions;
 using DnDGame.Domain.Engine.Effects;
 using DnDGame.Domain.Engine.Enums;
 using DnDGame.Domain.Engine.Initiative;
@@ -19,6 +20,8 @@ public sealed class BattleEngine : IBattleEngine
     private readonly ITurnEngine _turnEngine;
     private readonly IInitiativeEngine _initiativeEngine;
     private readonly ICardEngine _cardEngine;
+    private readonly IEnemyActionSelector _enemyActionSelector;
+    private readonly IEnemyDefenseRule _enemyDefenseRule;
 
     // Retained as injected collaborators for future action-resolution orchestration.
     private readonly IEffectEngine _effectEngine;
@@ -35,7 +38,9 @@ public sealed class BattleEngine : IBattleEngine
         IDamageCalculator damageCalculator,
         IDodgeCalculator dodgeCalculator,
         ICriticalCalculator criticalCalculator,
-        IDiceEngine diceEngine)
+        IDiceEngine diceEngine,
+        IEnemyActionSelector enemyActionSelector,
+        IEnemyDefenseRule enemyDefenseRule)
     {
         ArgumentNullException.ThrowIfNull(turnEngine);
         ArgumentNullException.ThrowIfNull(initiativeEngine);
@@ -45,6 +50,8 @@ public sealed class BattleEngine : IBattleEngine
         ArgumentNullException.ThrowIfNull(dodgeCalculator);
         ArgumentNullException.ThrowIfNull(criticalCalculator);
         ArgumentNullException.ThrowIfNull(diceEngine);
+        ArgumentNullException.ThrowIfNull(enemyActionSelector);
+        ArgumentNullException.ThrowIfNull(enemyDefenseRule);
 
         _turnEngine = turnEngine;
         _initiativeEngine = initiativeEngine;
@@ -54,6 +61,8 @@ public sealed class BattleEngine : IBattleEngine
         _dodgeCalculator = dodgeCalculator;
         _criticalCalculator = criticalCalculator;
         _diceEngine = diceEngine;
+        _enemyActionSelector = enemyActionSelector;
+        _enemyDefenseRule = enemyDefenseRule;
     }
 
     public EngineResult<BattleState> StartBattle(BattleContext battleContext)
@@ -71,8 +80,15 @@ public sealed class BattleEngine : IBattleEngine
             return EngineResult<BattleState>.Ok(battleContext.BattleState, statusResult.Message);
         }
 
-        var firstTurn = _initiativeEngine.DetermineFirstTurn(battleContext);
-        var turnResult = firstTurn == TurnType.Player
+        var initiativeResult = _initiativeEngine.DetermineFirstTurn(battleContext);
+        if (!initiativeResult.Success || initiativeResult.Data is null)
+        {
+            return EngineResult<BattleState>.Fail(
+                initiativeResult.Message,
+                initiativeResult.ErrorCode ?? EngineErrorCodes.MissingCombatRule);
+        }
+
+        var turnResult = initiativeResult.Data.StartingTurn == TurnType.Player
             ? _turnEngine.StartPlayerTurn(battleContext.BattleState)
             : _turnEngine.StartEnemyTurn(battleContext.BattleState);
 
@@ -142,6 +158,58 @@ public sealed class BattleEngine : IBattleEngine
         return EngineResult<BattleState>.Ok(battleContext.BattleState);
     }
 
+    public EngineResult<BattleState> ExecuteEnemyTurn(BattleContext battleContext)
+    {
+        var failure = EnsureActionAllowed(battleContext);
+        if (failure is not null)
+        {
+            return failure;
+        }
+
+        if (battleContext.BattleState.CurrentTurn != TurnType.Enemy ||
+            battleContext.BattleState.BattleStatus != BattleStatus.EnemyTurn)
+        {
+            return EngineResult<BattleState>.Fail(
+                "The enemy turn is not active.",
+                EngineErrorCodes.InvalidAction);
+        }
+
+        var actionResult = _enemyActionSelector.SelectAction(battleContext);
+        if (!actionResult.Success || actionResult.Data is null)
+        {
+            return EngineResult<BattleState>.Fail(
+                actionResult.Message,
+                actionResult.ErrorCode ?? EngineErrorCodes.MissingCombatRule);
+        }
+
+        var executionResult = actionResult.Data.Type switch
+        {
+            EnemyActionType.Attack => ExecuteEnemyAttack(battleContext),
+            EnemyActionType.Defend => ExecuteEnemyDefend(battleContext),
+            _ => EngineResult<BattleState>.Fail(
+                "The selected enemy action is invalid.",
+                EngineErrorCodes.InvalidAction)
+        };
+
+        if (!executionResult.Success)
+        {
+            return executionResult;
+        }
+
+        CheckBattleStatus(battleContext);
+        if (CheckDefeat(battleContext.BattleState))
+        {
+            return EngineResult<BattleState>.Ok(battleContext.BattleState);
+        }
+
+        var turnResult = _turnEngine.EndEnemyTurn(battleContext.BattleState);
+        return turnResult.Success
+            ? EngineResult<BattleState>.Ok(battleContext.BattleState)
+            : EngineResult<BattleState>.Fail(
+                turnResult.Message,
+                turnResult.ErrorCode ?? EngineErrorCodes.InvalidAction);
+    }
+
     public EngineResult<BattleStatus> CheckBattleStatus(BattleContext battleContext)
     {
         if (CheckDefeat(battleContext.BattleState))
@@ -164,6 +232,34 @@ public sealed class BattleEngine : IBattleEngine
     public bool CheckDefeat(BattleState battleState)
     {
         return battleState.PlayerHealth <= 0;
+    }
+
+    private EngineResult<BattleState> ExecuteEnemyAttack(BattleContext battleContext)
+    {
+        var battleState = battleContext.BattleState;
+        var damageResult = _damageCalculator.Calculate(
+            battleContext.Enemy.DamageAmount,
+            defense: 0,
+            battleState.PlayerBlock);
+
+        battleState.PlayerBlock = damageResult.RemainingBlock;
+        battleState.PlayerHealth = Math.Max(0, battleState.PlayerHealth - damageResult.FinalDamage);
+
+        return EngineResult<BattleState>.Ok(battleState);
+    }
+
+    private EngineResult<BattleState> ExecuteEnemyDefend(BattleContext battleContext)
+    {
+        var blockResult = _enemyDefenseRule.CalculateBlock(battleContext);
+        if (!blockResult.Success)
+        {
+            return EngineResult<BattleState>.Fail(
+                blockResult.Message,
+                blockResult.ErrorCode ?? EngineErrorCodes.MissingCombatRule);
+        }
+
+        battleContext.BattleState.EnemyBlock += blockResult.Data;
+        return EngineResult<BattleState>.Ok(battleContext.BattleState);
     }
 
     private static void InitialiseState(BattleContext battleContext)

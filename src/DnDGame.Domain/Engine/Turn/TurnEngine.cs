@@ -3,6 +3,7 @@ using DnDGame.Domain.Engine.Common;
 using DnDGame.Domain.Engine.Deck;
 using DnDGame.Domain.Engine.Effects;
 using DnDGame.Domain.Engine.Enums;
+using DnDGame.Domain.Engine.Hand;
 
 namespace DnDGame.Domain.Engine.Turn;
 
@@ -13,11 +14,20 @@ namespace DnDGame.Domain.Engine.Turn;
 public sealed class TurnEngine : ITurnEngine
 {
     private readonly IDeckEngine _deckEngine;
+    private readonly IHandEngine _handEngine;
     private readonly IEffectEngine _effectEngine;
 
-    public TurnEngine(IDeckEngine deckEngine, IEffectEngine effectEngine)
+    public TurnEngine(
+        IDeckEngine deckEngine,
+        IHandEngine handEngine,
+        IEffectEngine effectEngine)
     {
+        ArgumentNullException.ThrowIfNull(deckEngine);
+        ArgumentNullException.ThrowIfNull(handEngine);
+        ArgumentNullException.ThrowIfNull(effectEngine);
+
         _deckEngine = deckEngine;
+        _handEngine = handEngine;
         _effectEngine = effectEngine;
     }
 
@@ -61,7 +71,7 @@ public sealed class TurnEngine : ITurnEngine
         }
 
         _effectEngine.ApplyEndOfTurnEffects(battleState, TurnType.Player);
-        _deckEngine.DiscardHand(battleState);
+        _handEngine.DiscardHand(battleState);
 
         return NextTurn(battleState);
     }

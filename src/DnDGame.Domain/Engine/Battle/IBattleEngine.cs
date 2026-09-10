@@ -16,6 +16,8 @@ public interface IBattleEngine
 
     EngineResult<BattleState> EndTurn(BattleContext battleContext);
 
+    EngineResult<BattleState> ExecuteEnemyTurn(BattleContext battleContext);
+
     EngineResult<BattleStatus> CheckBattleStatus(BattleContext battleContext);
 
     bool CheckVictory(BattleState battleState);

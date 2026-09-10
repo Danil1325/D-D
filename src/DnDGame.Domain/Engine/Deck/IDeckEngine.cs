@@ -8,6 +8,4 @@ namespace DnDGame.Domain.Engine.Deck;
 public interface IDeckEngine
 {
     void DrawCardsForPlayerTurn(BattleState battleState);
-
-    void DiscardHand(BattleState battleState);
 }

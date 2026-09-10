@@ -1,9 +1,13 @@
+using DnDGame.Domain.Engine.Common;
+
 namespace DnDGame.Domain.Engine.Dice;
 
 /// <summary>
-/// Contract for obtaining a dice result.
+/// Generates dice results exclusively within the game backend.
 /// </summary>
 public interface IDiceEngine
 {
-    int Roll(int sides);
+    EngineResult<DiceResult> Roll(DiceType dice);
+
+    EngineResult<DiceResult> RollWithModifier(DiceType dice, int modifier);
 }

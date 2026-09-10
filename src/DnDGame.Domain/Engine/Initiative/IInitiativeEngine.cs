@@ -1,5 +1,5 @@
 using DnDGame.Domain.Engine.Battle;
-using DnDGame.Domain.Engine.Enums;
+using DnDGame.Domain.Engine.Common;
 
 namespace DnDGame.Domain.Engine.Initiative;
 
@@ -8,5 +8,5 @@ namespace DnDGame.Domain.Engine.Initiative;
 /// </summary>
 public interface IInitiativeEngine
 {
-    TurnType DetermineFirstTurn(BattleContext battleContext);
+    EngineResult<InitiativeResult> DetermineFirstTurn(BattleContext battleContext);
 }
