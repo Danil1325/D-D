@@ -33,5 +33,30 @@ public enum ErrorCode
     /// <summary>
     /// The specified card is not found in the player's hand.
     /// </summary>
-    CARD_NOT_IN_HAND = 5
+    CARD_NOT_IN_HAND = 5,
+
+    /// <summary>
+    /// No battle is currently active or the battle is not in a playable state.
+    /// </summary>
+    BATTLE_NOT_ACTIVE = 6,
+
+    /// <summary>
+    /// It is not the player's turn to play a card.
+    /// </summary>
+    NOT_PLAYER_TURN = 7,
+
+    /// <summary>
+    /// The player does not have enough energy/mana/resources to play the card.
+    /// </summary>
+    INSUFFICIENT_ENERGY = 8,
+
+    /// <summary>
+    /// The target specified for the card is invalid or not allowed.
+    /// </summary>
+    INVALID_TARGET = 9,
+
+    /// <summary>
+    /// The card cannot be played for a general reason.
+    /// </summary>
+    CARD_CANNOT_BE_PLAYED = 10
 }
