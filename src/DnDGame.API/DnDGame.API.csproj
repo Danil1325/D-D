@@ -6,6 +6,13 @@
     <Nullable>enable</Nullable>
     <RootNamespace>DnDGame.API</RootNamespace>
     <UserSecretsId>dnd-game-api-secrets</UserSecretsId>
+
+    <!-- Lets Swagger read <summary> comments for endpoint descriptions (Task 3.2). -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!-- CS1591: "missing XML comment for publicly visible type or member" — this
+         project doesn't require every public member to be documented, only that
+         Swagger can read the comments that do exist. -->
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
