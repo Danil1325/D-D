@@ -62,4 +62,28 @@ public class Battle : BaseEntity
     /// Notes or description about the battle outcome/events.
     /// </summary>
     public string? Notes { get; set; } = string.Empty;
+
+    /// <summary>
+    /// The current block/shield value for the enemy or opponent.
+    /// Temporary shield that reduces incoming damage. Resets each turn.
+    /// </summary>
+    public int EnemyBlock { get; set; } = 0;
+
+    /// <summary>
+    /// The current health of the enemy or opponent.
+    /// Updated as damage is dealt. Battle ends when this reaches 0.
+    /// </summary>
+    public int EnemyCurrentHealth { get; set; }
+
+    /// <summary>
+    /// The current health of the player.
+    /// Updated as damage is dealt. Battle ends when this reaches 0.
+    /// </summary>
+    public int PlayerCurrentHealth { get; set; }
+
+    /// <summary>
+    /// The maximum health of the player.
+    /// Used for heal effect cap calculations.
+    /// </summary>
+    public int PlayerMaxHealth { get; set; }
 }

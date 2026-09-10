@@ -47,4 +47,10 @@ public class BattleDeck : BaseEntity
     /// The total number of cards discarded from this deck in the current game session.
     /// </summary>
     public int TotalCardsDiscarded { get; set; }
+
+    /// <summary>
+    /// The current block/shield value for this deck's player.
+    /// Temporary shield that reduces incoming damage. Resets each turn.
+    /// </summary>
+    public int CurrentBlock { get; set; } = 0;
 }

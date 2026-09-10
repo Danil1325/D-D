@@ -3,8 +3,8 @@ namespace DnDGame.BusinessLayer.Effects.Strategies;
 using DnDGame.BusinessLayer.Effects.Interfaces;
 
 /// <summary>
-/// Effect that heals a target.
-/// Demonstrates another concrete effect strategy.
+/// Effect that heals a target or self.
+/// Ensures healing never exceeds MaxHealth.
 /// </summary>
 public class HealEffect : ICardEffect
 {
@@ -13,7 +13,7 @@ public class HealEffect : ICardEffect
     /// <summary>
     /// Heal effect can apply if:
     /// - Card has healing value (represented by BaseDamage for now)
-    /// - Target exists (healing is typically targeted)
+    /// - Target is valid (self or specified ally)
     /// </summary>
     public bool CanApply(CardEffectContext context)
     {
@@ -45,8 +45,8 @@ public class HealEffect : ICardEffect
     }
 
     /// <summary>
-    /// Applies healing to the target(s).
-    /// For now, just returns a description (healing logic would be in a health manager).
+    /// Applies healing to the player.
+    /// Healing is capped at MaxHealth and never exceeds it.
     /// </summary>
     public string Apply(CardEffectContext context)
     {
@@ -61,24 +61,35 @@ public class HealEffect : ICardEffect
         }
 
         int healAmount = context.EffectiveCardDamage;
+        int maxHealth = context.Battle.PlayerMaxHealth;
+        int currentHealth = context.Battle.PlayerCurrentHealth;
 
-        // In a full implementation, this would update character health
-        // For now, just return a description
+        // Calculate actual healing (capped at MaxHealth)
+        int actualHeal = Math.Min(healAmount, maxHealth - currentHealth);
+        
+        if (actualHeal <= 0)
+        {
+            return "Player is already at maximum health. No healing applied.";
+        }
+
+        // Apply heal
+        context.Battle.PlayerCurrentHealth += actualHeal;
+
         if (context.TargetsSelf)
         {
-            return $"Healed self for {healAmount} HP.";
+            return $"Healed self for {actualHeal} HP (from {currentHealth} to {context.Battle.PlayerCurrentHealth}).";
         }
         else if (context.TargetsArea)
         {
-            return $"Healed all allies for {healAmount} HP each.";
+            return $"Healed all allies for {actualHeal} HP each.";
         }
         else if (context.HasTarget)
         {
-            return $"Healed target ID {context.Target!.TargetId} for {healAmount} HP.";
+            return $"Healed target ID {context.Target!.TargetId} for {actualHeal} HP.";
         }
         else
         {
-            return $"Healed for {healAmount} HP.";
+            return $"Healed for {actualHeal} HP (capped at MaxHealth).";
         }
     }
 }

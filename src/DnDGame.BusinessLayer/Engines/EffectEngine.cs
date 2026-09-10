@@ -3,6 +3,7 @@ namespace DnDGame.BusinessLayer.Engines;
 using DnDGame.BusinessLayer.Effects;
 using DnDGame.BusinessLayer.Effects.Interfaces;
 using DnDGame.BusinessLayer.Engines.Interfaces;
+using DnDGame.Domain.Configuration;
 using DnDGame.Domain.Entities.Cards;
 using DnDGame.Domain.Entities.Game;
 
@@ -14,15 +15,29 @@ using DnDGame.Domain.Entities.Game;
 public class EffectEngine : IEffectEngine
 {
     private readonly CardEffectRegistry _effectRegistry;
+    private readonly IHandEngine? _handEngine;
+    private readonly IDeckEngine? _deckEngine;
+    private readonly HandRules? _handRules;
 
     /// <summary>
     /// Creates a new instance of EffectEngine with the specified effect registry.
+    /// Optional engines and rules enable effects that interact with hand/deck.
     /// </summary>
     /// <param name="effectRegistry">The registry of available effect strategies.</param>
+    /// <param name="handEngine">Optional hand engine for draw effects.</param>
+    /// <param name="deckEngine">Optional deck engine for card interactions.</param>
+    /// <param name="handRules">Optional hand rules for size checking.</param>
     /// <exception cref="ArgumentNullException">Thrown when effectRegistry is null.</exception>
-    public EffectEngine(CardEffectRegistry effectRegistry)
+    public EffectEngine(
+        CardEffectRegistry effectRegistry,
+        IHandEngine? handEngine = null,
+        IDeckEngine? deckEngine = null,
+        HandRules? handRules = null)
     {
         _effectRegistry = effectRegistry ?? throw new ArgumentNullException(nameof(effectRegistry));
+        _handEngine = handEngine;
+        _deckEngine = deckEngine;
+        _handRules = handRules;
     }
 
     /// <summary>
@@ -66,7 +81,10 @@ public class EffectEngine : IEffectEngine
             playerBattleDeck: battleDeck,
             playerId: playerId,
             cardDefinition: playedCard.Card,
-            target: target
+            target: target,
+            handEngine: _handEngine,
+            deckEngine: _deckEngine,
+            handRules: _handRules
         );
 
         // Get the primary effect type from the card's EffectType enum

@@ -1,6 +1,7 @@
 namespace DnDGame.BusinessLayer.Effects;
 
 using DnDGame.BusinessLayer.Engines.Interfaces;
+using DnDGame.Domain.Configuration;
 using DnDGame.Domain.Entities.Cards;
 using DnDGame.Domain.Entities.Game;
 using DnDGame.Domain.Enums;
@@ -44,6 +45,21 @@ public class CardEffectContext
     public Card CardDefinition { get; set; }
 
     /// <summary>
+    /// Optional hand engine for effects that need to draw/manage hand.
+    /// </summary>
+    public IHandEngine? HandEngine { get; set; }
+
+    /// <summary>
+    /// Optional deck engine for effects that need to interact with deck.
+    /// </summary>
+    public IDeckEngine? DeckEngine { get; set; }
+
+    /// <summary>
+    /// Optional hand rules for effects that need to check hand limits.
+    /// </summary>
+    public HandRules? HandRules { get; set; }
+
+    /// <summary>
     /// Creates a new CardEffectContext with all required battle information.
     /// </summary>
     /// <param name="battle">The active battle.</param>
@@ -52,6 +68,9 @@ public class CardEffectContext
     /// <param name="playerId">The player ID.</param>
     /// <param name="cardDefinition">The card definition.</param>
     /// <param name="target">Optional target for the effect.</param>
+    /// <param name="handEngine">Optional hand engine for draw effects.</param>
+    /// <param name="deckEngine">Optional deck engine for card interactions.</param>
+    /// <param name="handRules">Optional hand rules for size checking.</param>
     /// <exception cref="ArgumentNullException">Thrown when required parameters are null.</exception>
     public CardEffectContext(
         Battle battle,
@@ -59,7 +78,10 @@ public class CardEffectContext
         BattleDeck playerBattleDeck,
         int playerId,
         Card cardDefinition,
-        ICardTarget? target = null)
+        ICardTarget? target = null,
+        IHandEngine? handEngine = null,
+        IDeckEngine? deckEngine = null,
+        HandRules? handRules = null)
     {
         Battle = battle ?? throw new ArgumentNullException(nameof(battle));
         PlayedCard = playedCard ?? throw new ArgumentNullException(nameof(playedCard));
@@ -67,6 +89,9 @@ public class CardEffectContext
         CardDefinition = cardDefinition ?? throw new ArgumentNullException(nameof(cardDefinition));
         PlayerId = playerId;
         Target = target;
+        HandEngine = handEngine;
+        DeckEngine = deckEngine;
+        HandRules = handRules;
     }
 
     /// <summary>
