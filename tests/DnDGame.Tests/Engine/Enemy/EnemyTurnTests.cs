@@ -84,7 +84,8 @@ public class EnemyTurnTests
             new CriticalCalculatorStub(),
             new DiceEngineStub(),
             new EnemyActionSelector(new FixedEnemyActionRule(action)),
-            new FixedEnemyDefenseRule(defendBlock));
+            new FixedEnemyDefenseRule(defendBlock),
+            new BattleLogWriter());
     }
 
     private static BattleContext CreateEnemyTurnContext(int playerHealth, int enemyDamage, int enemyBlock = 0)

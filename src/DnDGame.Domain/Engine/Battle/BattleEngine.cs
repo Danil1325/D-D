@@ -22,6 +22,7 @@ public sealed class BattleEngine : IBattleEngine
     private readonly ICardEngine _cardEngine;
     private readonly IEnemyActionSelector _enemyActionSelector;
     private readonly IEnemyDefenseRule _enemyDefenseRule;
+    private readonly IBattleLogWriter _battleLogWriter;
 
     // Retained as injected collaborators for future action-resolution orchestration.
     private readonly IEffectEngine _effectEngine;
@@ -40,7 +41,8 @@ public sealed class BattleEngine : IBattleEngine
         ICriticalCalculator criticalCalculator,
         IDiceEngine diceEngine,
         IEnemyActionSelector enemyActionSelector,
-        IEnemyDefenseRule enemyDefenseRule)
+        IEnemyDefenseRule enemyDefenseRule,
+        IBattleLogWriter battleLogWriter)
     {
         ArgumentNullException.ThrowIfNull(turnEngine);
         ArgumentNullException.ThrowIfNull(initiativeEngine);
@@ -52,6 +54,7 @@ public sealed class BattleEngine : IBattleEngine
         ArgumentNullException.ThrowIfNull(diceEngine);
         ArgumentNullException.ThrowIfNull(enemyActionSelector);
         ArgumentNullException.ThrowIfNull(enemyDefenseRule);
+        ArgumentNullException.ThrowIfNull(battleLogWriter);
 
         _turnEngine = turnEngine;
         _initiativeEngine = initiativeEngine;
@@ -63,6 +66,7 @@ public sealed class BattleEngine : IBattleEngine
         _diceEngine = diceEngine;
         _enemyActionSelector = enemyActionSelector;
         _enemyDefenseRule = enemyDefenseRule;
+        _battleLogWriter = battleLogWriter;
     }
 
     public EngineResult<BattleState> StartBattle(BattleContext battleContext)
@@ -212,13 +216,18 @@ public sealed class BattleEngine : IBattleEngine
 
     public EngineResult<BattleStatus> CheckBattleStatus(BattleContext battleContext)
     {
+        if (IsBattleFinished(battleContext.BattleState))
+        {
+            return EngineResult<BattleStatus>.Ok(battleContext.BattleState.BattleStatus);
+        }
+
         if (CheckDefeat(battleContext.BattleState))
         {
-            battleContext.BattleState.BattleStatus = BattleStatus.Defeat;
+            FinalizeBattle(battleContext.BattleState, BattleStatus.Defeat);
         }
         else if (CheckVictory(battleContext.BattleState))
         {
-            battleContext.BattleState.BattleStatus = BattleStatus.Victory;
+            FinalizeBattle(battleContext.BattleState, BattleStatus.Victory);
         }
 
         return EngineResult<BattleStatus>.Ok(battleContext.BattleState.BattleStatus);
@@ -291,21 +300,39 @@ public sealed class BattleEngine : IBattleEngine
 
     private EngineResult<BattleState>? EnsureActionAllowed(BattleContext battleContext)
     {
-        if (CheckDefeat(battleContext.BattleState))
+        if (IsBattleFinished(battleContext.BattleState))
         {
-            battleContext.BattleState.BattleStatus = BattleStatus.Defeat;
-            return EngineResult<BattleState>.Fail("The player is defeated.", EngineErrorCodes.PlayerDead);
+            return BattleFinished();
         }
 
-        if (CheckVictory(battleContext.BattleState))
-        {
-            battleContext.BattleState.BattleStatus = BattleStatus.Victory;
-            return EngineResult<BattleState>.Fail("The enemy is defeated.", EngineErrorCodes.EnemyDead);
-        }
+        CheckBattleStatus(battleContext);
 
-        return battleContext.BattleState.BattleStatus is BattleStatus.Victory or BattleStatus.Defeat
+        return IsBattleFinished(battleContext.BattleState)
             ? BattleFinished()
             : null;
+    }
+
+    private void FinalizeBattle(BattleState battleState, BattleStatus terminalStatus)
+    {
+        battleState.BattleStatus = terminalStatus;
+
+        var action = terminalStatus == BattleStatus.Victory ? "Victory" : "Defeat";
+        var result = terminalStatus == BattleStatus.Victory
+            ? "Enemy health reached zero."
+            : "Player health reached zero.";
+
+        _battleLogWriter.Write(
+            battleState,
+            new BattleLogEntry(
+                battleState.TurnNumber,
+                actor: "Battle",
+                action: action,
+                result: result));
+    }
+
+    private static bool IsBattleFinished(BattleState battleState)
+    {
+        return battleState.BattleStatus is BattleStatus.Victory or BattleStatus.Defeat;
     }
 
     private static EngineResult<BattleState> BattleFinished()
