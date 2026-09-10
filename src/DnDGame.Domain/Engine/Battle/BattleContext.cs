@@ -4,13 +4,27 @@ using DnDGame.Domain.Entities.Enemies;
 namespace DnDGame.Domain.Engine.Battle;
 
 /// <summary>
-/// Groups the source combatants with the mutable state for a single battle.
+/// Groups the combatants and mutable state required to process a single battle.
 /// </summary>
-public class BattleContext
+public sealed class BattleContext
 {
-    public required PlayerCharacter Player { get; init; }
+    public BattleContext(PlayerCharacter player, Enemy enemy, BattleState battleState)
+    {
+        ArgumentNullException.ThrowIfNull(player);
+        ArgumentNullException.ThrowIfNull(enemy);
+        ArgumentNullException.ThrowIfNull(battleState);
 
-    public required Enemy Enemy { get; init; }
+        Player = player;
+        Enemy = enemy;
+        BattleState = battleState;
+    }
 
-    public required BattleState State { get; init; }
+    /// <summary>The player character participating in the battle.</summary>
+    public PlayerCharacter Player { get; }
+
+    /// <summary>The enemy participating in the battle.</summary>
+    public Enemy Enemy { get; }
+
+    /// <summary>The mutable state of the current battle.</summary>
+    public BattleState BattleState { get; }
 }

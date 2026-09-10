@@ -8,7 +8,7 @@ namespace DnDGame.Domain.Engine.Battle;
 /// </summary>
 public class BattleState
 {
-    public Guid BattleId { get; set; }
+    public Guid BattleId { get; set; } = Guid.Empty;
 
     public int PlayerHealth { get; set; }
     public int PlayerMaxHealth { get; set; }
@@ -20,7 +20,7 @@ public class BattleState
     public int EnemyMaxHealth { get; set; }
     public int EnemyBlock { get; set; }
 
-    public int TurnNumber { get; set; }
+    public int TurnNumber { get; set; } = 1;
     public TurnType CurrentTurn { get; set; } = TurnType.Player;
     public BattleStatus BattleStatus { get; set; } = BattleStatus.PlayerTurn;
 
@@ -28,4 +28,7 @@ public class BattleState
     public IList<CardInstance> DrawPile { get; set; } = new List<CardInstance>();
     public IList<CardInstance> DiscardPile { get; set; } = new List<CardInstance>();
     public IList<ActiveEffect> ActiveEffects { get; set; } = new List<ActiveEffect>();
+    public List<BattleLogEntry> BattleLog { get; set; } = new();
+
+    public bool RewardsGranted { get; set; } = false;
 }
