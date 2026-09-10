@@ -23,5 +23,15 @@ public enum ErrorCode
     /// <summary>
     /// A card appears more times in the deck than the maximum copies allowed per card.
     /// </summary>
-    CARD_COPY_LIMIT_REACHED = 3
+    CARD_COPY_LIMIT_REACHED = 3,
+
+    /// <summary>
+    /// The player's hand is full and cannot accept more cards.
+    /// </summary>
+    HAND_FULL = 4,
+
+    /// <summary>
+    /// The specified card is not found in the player's hand.
+    /// </summary>
+    CARD_NOT_IN_HAND = 5
 }
