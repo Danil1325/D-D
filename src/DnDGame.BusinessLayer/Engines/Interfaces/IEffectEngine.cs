@@ -1,5 +1,6 @@
 namespace DnDGame.BusinessLayer.Engines.Interfaces;
 
+using DnDGame.BusinessLayer.Effects;
 using DnDGame.Domain.Entities.Cards;
 using DnDGame.Domain.Entities.Game;
 
@@ -12,13 +13,16 @@ public interface IEffectEngine
 {
     /// <summary>
     /// Applies the effects of a card to the specified target(s) during a battle.
+    /// Creates a CardEffectContext with all battle state and applies registered effect strategies.
     /// </summary>
     /// <param name="battle">The active battle.</param>
     /// <param name="playedCard">The card instance being played.</param>
+    /// <param name="battleDeck">The player's battle deck.</param>
+    /// <param name="playerId">The ID of the player who played the card.</param>
     /// <param name="target">The target of the card's effect. Can be null for area effects or self effects.</param>
     /// <returns>A description of what the card effect did.</returns>
-    /// <exception cref="ArgumentNullException">Thrown when battle or playedCard is null.</exception>
-    string ApplyCardEffect(Battle battle, CardInstance playedCard, ICardTarget? target = null);
+    /// <exception cref="ArgumentNullException">Thrown when battle, playedCard, or battleDeck is null.</exception>
+    string ApplyCardEffect(Battle battle, CardInstance playedCard, BattleDeck battleDeck, int playerId, ICardTarget? target = null);
 
     /// <summary>
     /// Calculates damage for a card against a specific target.

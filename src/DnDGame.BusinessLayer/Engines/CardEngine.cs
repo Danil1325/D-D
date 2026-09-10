@@ -132,7 +132,7 @@ public class CardEngine : ICardEngine
         {
             try
             {
-                effectDescription = _effectEngine.ApplyCardEffect(battle, cardToPlay, target);
+                effectDescription = _effectEngine.ApplyCardEffect(battle, cardToPlay, battleDeck, playerId, target);
             }
             catch (Exception ex)
             {
