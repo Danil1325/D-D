@@ -177,8 +177,10 @@ public static class DependencyInjection
         services.AddScoped<ITalentRepository, MockTalentRepository>();
         services.AddScoped<IGameSessionRepository, MockGameSessionRepository>();
         services.AddScoped<IStoryNodeRepository, MockStoryNodeRepository>();
+        services.AddScoped<ICardCollectionRepository, MockCardCollectionRepository>();
 
         services.AddScoped<ICurrentPlayerService, MockCurrentPlayerService>();
+        services.AddScoped<ICardService, CardService>();
         return services;
     }
 }

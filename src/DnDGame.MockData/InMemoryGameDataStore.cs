@@ -43,6 +43,9 @@ public class InMemoryGameDataStore
     public List<GameSession> GameSessions { get; } = new();
     public List<SessionLogEntry> SessionLogEntries { get; } = new();
 
+    // --- Runtime / gameplay data (empty until a PlayerCharacter unlocks or is given a card) ---
+    public List<CardCollection> CardCollections { get; } = new();
+
     // Id counters only for the runtime tables above — every reference-data row gets
     // an explicit, hardcoded Id from its seed data instead, so cross-references
     // between seed files (e.g. a Choice pointing at an Enemy) are predictable.
