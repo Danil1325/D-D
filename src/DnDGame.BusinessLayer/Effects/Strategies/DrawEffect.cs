@@ -95,14 +95,8 @@ public class DrawEffect : ICardEffect
             return "No cards could be drawn.";
         }
 
-        // Add drawn cards to hand
-        var addResult = context.HandEngine.AddCards(context.PlayerBattleDeck, drawnCards);
-        if (!addResult.IsSuccess)
-        {
-            // Shouldn't happen if CanApply passed, but handle gracefully
-            return $"Failed to add drawn cards to hand: {addResult.ErrorMessage}";
-        }
-
+        // DeckEngine.DrawCards already moves each drawn card into Hand. The space
+        // calculation above guarantees this does not exceed the hand limit.
         return $"Drew {drawnCards.Count} card(s) (hand size: {context.HandEngine.GetHandSize(context.PlayerBattleDeck)}/{context.HandRules.MaxHandSize}).";
     }
 }

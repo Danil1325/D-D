@@ -1,6 +1,7 @@
 using DnDGame.BusinessLayer.Effects;
 using DnDGame.BusinessLayer.Effects.Interfaces;
 using DnDGame.BusinessLayer.Effects.Strategies;
+using DnDGame.BusinessLayer.Engines.Interfaces;
 using DnDGame.Domain.Entities.Cards;
 using DnDGame.Domain.Entities.Game;
 using DnDGame.Domain.Engine.Enums;
@@ -45,12 +46,100 @@ public class ActiveEffectCardEffectTests
         Assert.False(new StrengthCardEffect().CanApply(context));
     }
 
-    private static CardEffectContext CreateContext(ICollection<ActiveEffect>? activeEffects)
+    [Theory]
+    [MemberData(nameof(ResolvedTargets))]
+    public void Apply_ResolvesTargetByCardTargetType(TargetType targetType, EffectTarget expected)
+    {
+        var activeEffects = new List<ActiveEffect>();
+        var context = CreateContext(activeEffects, targetType, target: new Target(5));
+
+        var result = new StrengthCardEffect(duration: 1).Apply(context);
+
+        var effect = Assert.Single(activeEffects);
+        Assert.Equal(expected, effect.Target);
+        Assert.Contains(expected.ToString(), result);
+    }
+
+    public static IEnumerable<object[]> ResolvedTargets =>
+    [
+        [TargetType.SingleEnemy, EffectTarget.Enemy],
+        [TargetType.AllEnemies, EffectTarget.Enemy],
+        [TargetType.Self, EffectTarget.Player],
+        [TargetType.SingleAlly, EffectTarget.Player],
+        [TargetType.AllAllies, EffectTarget.Player]
+    ];
+
+    [Fact]
+    public void Apply_CreatesEffectThenConsumingDurationExpiresIt()
+    {
+        var activeEffects = new List<ActiveEffect>();
+        var context = CreateContext(activeEffects);
+
+        new StrengthCardEffect(duration: 1).Apply(context);
+
+        var effect = Assert.Single(activeEffects);
+        Assert.False(effect.IsExpired);
+
+        effect.ConsumeDuration();
+
+        Assert.True(effect.IsExpired);
+        Assert.Equal(0, effect.Duration);
+    }
+
+    [Fact]
+    public void CanApply_IsFalseWhenCardHasNoPositiveDamage()
+    {
+        var card = new Card { BaseDamage = 0, TargetType = TargetType.Self };
+        var context = new CardEffectContext(
+            new Battle(),
+            new CardInstance { Card = card },
+            new BattleDeck(),
+            playerId: 1,
+            cardDefinition: card,
+            activeEffects: new List<ActiveEffect>());
+
+        Assert.False(new StrengthCardEffect().CanApply(context));
+    }
+
+    [Fact]
+    public void CanApply_IsFalseForSingleTargetCardsWithoutATarget()
+    {
+        var card = new Card { BaseDamage = 3, TargetType = TargetType.SingleEnemy };
+        var context = new CardEffectContext(
+            new Battle(),
+            new CardInstance { Card = card },
+            new BattleDeck(),
+            playerId: 1,
+            cardDefinition: card,
+            activeEffects: new List<ActiveEffect>());
+
+        Assert.False(new WeakCardEffect().CanApply(context));
+    }
+
+    [Fact]
+    public void CanApply_IsFalseForUnsupportedTargetType()
+    {
+        var card = new Card { BaseDamage = 3, TargetType = TargetType.None };
+        var context = new CardEffectContext(
+            new Battle(),
+            new CardInstance { Card = card },
+            new BattleDeck(),
+            playerId: 1,
+            cardDefinition: card,
+            activeEffects: new List<ActiveEffect>());
+
+        Assert.False(new DefenseUpCardEffect().CanApply(context));
+    }
+
+    private static CardEffectContext CreateContext(
+        ICollection<ActiveEffect>? activeEffects,
+        TargetType targetType = TargetType.Self,
+        ICardTarget? target = null)
     {
         var card = new Card
         {
             BaseDamage = 3,
-            TargetType = TargetType.Self,
+            TargetType = targetType,
             EffectType = EffectType.Strength
         };
 
@@ -60,6 +149,13 @@ public class ActiveEffectCardEffectTests
             new BattleDeck(),
             playerId: 1,
             cardDefinition: card,
+            target,
             activeEffects: activeEffects);
+    }
+
+    private sealed class Target(int targetId) : ICardTarget
+    {
+        public int TargetId { get; } = targetId;
+        public string TargetType => "Enemy";
     }
 }

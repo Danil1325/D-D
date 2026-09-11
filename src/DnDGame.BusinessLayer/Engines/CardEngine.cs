@@ -14,7 +14,6 @@ using DnDGame.Domain.Enums;
 public class CardEngine : ICardEngine
 {
     private readonly IPlayEngine _playEngine;
-    private readonly IHandEngine _handEngine;
     private readonly IDeckEngine _deckEngine;
     private readonly IEffectEngine? _effectEngine;
     private readonly PlayRules _playRules;
@@ -37,7 +36,6 @@ public class CardEngine : ICardEngine
         IEffectEngine? effectEngine = null)
     {
         _playEngine = playEngine ?? throw new ArgumentNullException(nameof(playEngine));
-        _handEngine = handEngine ?? throw new ArgumentNullException(nameof(handEngine));
         _deckEngine = deckEngine ?? throw new ArgumentNullException(nameof(deckEngine));
         _playRules = playRules ?? throw new ArgumentNullException(nameof(playRules));
         _effectEngine = effectEngine;
@@ -111,18 +109,18 @@ public class CardEngine : ICardEngine
         // Consume the energy from battle state
         battle.CurrentPlayerEnergy = remainingEnergy;
 
-        // ========== STEP 3: REMOVE FROM HAND ==========
-        // Remove card from player's hand
-        var handRemovalResult = _handEngine.RemoveCard(battleDeck, cardToPlay);
-        if (!handRemovalResult.IsSuccess)
+        // ========== STEP 3: REMOVE FROM HAND AND DISCARD ==========
+        // Move the played card from hand to the discard pile.
+        // DiscardCard removes the card from hand first, so no separate removal is needed.
+        if (!_deckEngine.DiscardCard(battleDeck, cardToPlay))
         {
             // This should not happen if validation passed, but handle gracefully
             // Restore energy state before returning
             battle.CurrentPlayerEnergy += cardCost;
 
             return EngineResult<CardPlayResult>.Failure(
-                handRemovalResult.ErrorCode!.Value,
-                $"Failed to remove card from hand: {handRemovalResult.ErrorMessage}"
+                ErrorCode.CARD_NOT_IN_HAND,
+                $"Card with instance ID '{cardToPlay.InstanceId}' is not in the hand."
             );
         }
 
@@ -141,10 +139,6 @@ public class CardEngine : ICardEngine
                 effectDescription = $"Error applying effects: {ex.Message}";
             }
         }
-
-        // ========== STEP 5: DISCARD ==========
-        // Move the card to the discard pile
-        _deckEngine.DiscardCard(battleDeck, cardToPlay);
 
         // ========== SUCCESS ==========
         // Create and return the result of the successful card play
