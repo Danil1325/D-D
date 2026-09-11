@@ -10,5 +10,7 @@ public enum CardType
     Armor = 2,
     Ability = 3,
     Item = 4,
-    Trap = 5
+    Trap = 5,
+    Artifact = 6,
+    Consumable = 7
 }

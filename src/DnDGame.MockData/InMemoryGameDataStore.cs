@@ -1,4 +1,5 @@
 using DnDGame.Domain.Entities.Characters;
+using DnDGame.Domain.Entities.Cards;
 using DnDGame.Domain.Entities.Classes;
 using DnDGame.Domain.Entities.Enemies;
 using DnDGame.Domain.Entities.Game;
@@ -34,6 +35,7 @@ public class InMemoryGameDataStore
     public List<Adventure> Adventures { get; } = new();
     public List<StoryNode> StoryNodes { get; } = new();
     public List<Choice> Choices { get; } = new();
+    public List<Card> Cards { get; } = new();
 
     // --- Runtime / gameplay data (empty until Phase 3 starts creating characters) ---
     public List<PlayerCharacter> Characters { get; } = new();
