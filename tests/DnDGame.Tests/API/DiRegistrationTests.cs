@@ -135,6 +135,7 @@ public class DiRegistrationTests
     [Theory]
     [InlineData(typeof(IRandomNumberSource))]
     [InlineData(typeof(IDiceEngine))]
+    [InlineData(typeof(IDiceService))]
     [InlineData(typeof(DomainCombat.IDamageCalculator))]
     [InlineData(typeof(DomainCombat.IDamageRule))]
     [InlineData(typeof(DomainCombat.IDodgeCalculator))]

@@ -19,10 +19,12 @@ using DnDGame.BusinessLayer.Engines;
 using DnDGame.BusinessLayer.Engines.Interfaces;
 using DnDGame.BusinessLayer.Repositories;
 using DnDGame.BusinessLayer.Repositories.Interfaces;
+using DnDGame.BusinessLayer.Services;
 using DnDGame.BusinessLayer.Services.Interfaces;
 using DnDGame.Domain.Configuration;
 using DnDGame.Domain.Engine.Battle;
 using DnDGame.Domain.Engine.Combat;
+using DnDGame.Domain.Engine.Common;
 using DnDGame.Domain.Engine.Dice;
 using DnDGame.Domain.Engine.EnemyActions;
 using DnDGame.Domain.Engine.Initiative;
@@ -30,6 +32,7 @@ using DnDGame.Domain.Engine.SavingThrows;
 using DnDGame.MockData;
 using DnDGame.MockData.Repositories;
 using DnDGame.MockData.Services;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 
 // There are two IDamageCalculator contracts on this branch:
@@ -76,7 +79,17 @@ public static class DependencyInjection
 
         // --- Rules / cross-cutting ---
         services.AddScoped<IDeckValidator, DeckValidator>();
-        services.AddSingleton<IErrorCodeHttpMapper, ErrorCodeHttpMapper>();
+
+        // Registered here (rather than a 4th composition method) since this is the
+        // one shared IErrorCodeHttpMapper instance for the whole API. Feature-specific
+        // codes are added via Register(...) as each feature starts throwing them —
+        // currently only the Dice feature (see AddBattleTurnSystemServices) does.
+        services.AddSingleton<IErrorCodeHttpMapper>(_ =>
+        {
+            var mapper = new ErrorCodeHttpMapper();
+            mapper.Register(EngineErrorCodes.InvalidDice, StatusCodes.Status400BadRequest);
+            return mapper;
+        });
 
         // --- Card effects (strategy pattern) ---
         // Every ICardEffect is registered so CardEffectRegistry can be built from
@@ -107,6 +120,7 @@ public static class DependencyInjection
         // --- Dice (foundation of everything random in battle) ---
         services.AddSingleton<IRandomNumberSource, CryptographicRandomNumberSource>();
         services.AddSingleton<IDiceEngine, DiceEngine>();
+        services.AddScoped<IDiceService, DiceService>();
 
         // --- Combat (damage, dodge, criticals) ---
         // IDamageRule/IDodgeRule/IInitiativeRule are optional policy seams — their

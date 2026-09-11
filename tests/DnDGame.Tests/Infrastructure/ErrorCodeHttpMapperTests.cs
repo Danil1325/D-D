@@ -1,4 +1,7 @@
+using DnDGame.API.CompositionRoot;
 using DnDGame.BusinessLayer.Common.Errors;
+using DnDGame.Domain.Engine.Common;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace DnDGame.Tests.Infrastructure;
 
@@ -48,5 +51,17 @@ public class ErrorCodeHttpMapperTests
         mapper.Register(ErrorCodes.NotFound, 418);
 
         Assert.Equal(418, mapper.Map(ErrorCodes.NotFound));
+    }
+
+    [Fact]
+    public void CompositionRoot_RegistersInvalidDiceAs400()
+    {
+        var services = new ServiceCollection();
+        services.AddCardBattleServices();
+
+        using var provider = services.BuildServiceProvider();
+        var mapper = provider.GetRequiredService<IErrorCodeHttpMapper>();
+
+        Assert.Equal(400, mapper.Map(EngineErrorCodes.InvalidDice));
     }
 }
