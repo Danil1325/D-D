@@ -5,6 +5,7 @@ using DnDGame.Domain.Configuration;
 using DnDGame.Domain.Entities.Cards;
 using DnDGame.Domain.Entities.Game;
 using DnDGame.Domain.Enums;
+using ActiveEffect = DnDGame.Domain.Engine.Models.ActiveEffect;
 
 /// <summary>
 /// Provides context and state information to card effects during execution.
@@ -60,6 +61,13 @@ public class CardEffectContext
     public HandRules? HandRules { get; set; }
 
     /// <summary>
+    /// Optional destination for persistent effects created by card strategies.
+    /// The turn-based layer can supply <c>BattleState.ActiveEffects</c> here
+    /// without coupling this card context to <c>BattleState</c>.
+    /// </summary>
+    public ICollection<ActiveEffect>? ActiveEffects { get; set; }
+
+    /// <summary>
     /// Creates a new CardEffectContext with all required battle information.
     /// </summary>
     /// <param name="battle">The active battle.</param>
@@ -81,7 +89,8 @@ public class CardEffectContext
         ICardTarget? target = null,
         IHandEngine? handEngine = null,
         IDeckEngine? deckEngine = null,
-        HandRules? handRules = null)
+        HandRules? handRules = null,
+        ICollection<ActiveEffect>? activeEffects = null)
     {
         Battle = battle ?? throw new ArgumentNullException(nameof(battle));
         PlayedCard = playedCard ?? throw new ArgumentNullException(nameof(playedCard));
@@ -92,6 +101,7 @@ public class CardEffectContext
         HandEngine = handEngine;
         DeckEngine = deckEngine;
         HandRules = handRules;
+        ActiveEffects = activeEffects;
     }
 
     /// <summary>

@@ -14,5 +14,9 @@ public enum EffectType
     Discard = 6,
     Stun = 7,
     Protect = 8,
-    Custom = 9
+    Custom = 9,
+    Strength = 10,
+    Weak = 11,
+    Vulnerable = 12,
+    DefenseUp = 13
 }
