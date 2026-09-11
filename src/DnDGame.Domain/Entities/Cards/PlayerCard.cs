@@ -1,5 +1,6 @@
 using DnDGame.Domain.Common;
 using DnDGame.Domain.Entities.Characters;
+using DnDGame.Domain.Enums;
 
 namespace DnDGame.Domain.Entities.Cards;
 
@@ -23,6 +24,14 @@ public class PlayerCard : BaseEntity
     public bool Unlocked { get; private set; }
 
     public int Quantity { get; private set; }
+
+    /// <summary>Visibility preset applied while this card remains locked.</summary>
+    public CardVisibilityRule VisibilityRule { get; private set; } = CardVisibilityRule.HideAll;
+
+    public void SetVisibilityRule(CardVisibilityRule visibilityRule)
+    {
+        VisibilityRule = visibilityRule;
+    }
 
     /// <summary>
     /// Unlocks this card only when its matching rule is structurally valid and
