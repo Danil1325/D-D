@@ -499,3 +499,27 @@ for the DI tests).
     repository; player collection/unlock is exercised via `CardCollection` in tests.
 13. **No new controllers** in this slice (P2 contract); endpoints arrive with the controllers
     phase, consuming the engines via the DI container.
+
+---
+
+## 14. Person 3 follow-up: Dice, Card, Deck features
+
+Added on `alexandru` after this document was written, per the remaining Person 3 scope:
+
+- **Dice**: `DiceRequestDto`/`DiceResultDto`, `IDiceService`/`DiceService` (wraps `IDiceEngine`),
+  `DiceController` (`POST /api/dice/roll`). `EngineErrorCodes.InvalidDice` mapped to 400.
+- **Card**: `ICardCollectionRepository`/`MockCardCollectionRepository` (lazily creates an empty
+  `CardCollection` per player character), `CardDetailsDto`/`CardSearchRequestDto`,
+  `ICardService`/`CardService` (thin wrapper over `CardCollection.SearchCards`/`GetCardDetails`,
+  no filtering/sorting logic duplicated), `CardController` (`GET /api/card`, `GET /api/card/{id}`).
+- **Deck**: `IDeckRepository`/`MockDeckRepository` (CRUD + catalogue card lookup by id — no
+  dedicated card-catalogue repository exists yet, so lookup lives here), `DeckResponseDto`/
+  `DeckSaveRequestDto`/`DeckValidationResultDto`, `IDeckService`/`DeckService` (ownership-checked
+  CRUD over the current player's decks, plus validation via the existing `IDeckValidator`),
+  `DeckController` (`GET/POST /api/deck`, `GET/PUT/DELETE /api/deck/{id}`,
+  `POST /api/deck/{id}/validate`). `DECK_TOO_SMALL`/`DECK_TOO_LARGE`/`CARD_COPY_LIMIT_REACHED`
+  mapped to 400.
+
+None of the §10 Person 1 seams were touched. `InMemoryGameDataStore` gained two additive lists
+(`CardCollections`, `Decks`); no existing store field was removed or restructured. Test count
+grew from 229 to 262 (see individual PRs for the breakdown).
