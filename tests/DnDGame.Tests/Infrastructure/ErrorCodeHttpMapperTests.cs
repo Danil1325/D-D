@@ -64,4 +64,19 @@ public class ErrorCodeHttpMapperTests
 
         Assert.Equal(400, mapper.Map(EngineErrorCodes.InvalidDice));
     }
+
+    [Theory]
+    [InlineData(nameof(DnDGame.Domain.Enums.ErrorCode.DECK_TOO_SMALL))]
+    [InlineData(nameof(DnDGame.Domain.Enums.ErrorCode.DECK_TOO_LARGE))]
+    [InlineData(nameof(DnDGame.Domain.Enums.ErrorCode.CARD_COPY_LIMIT_REACHED))]
+    public void CompositionRoot_RegistersDeckValidationCodesAs400(string errorCode)
+    {
+        var services = new ServiceCollection();
+        services.AddCardBattleServices();
+
+        using var provider = services.BuildServiceProvider();
+        var mapper = provider.GetRequiredService<IErrorCodeHttpMapper>();
+
+        Assert.Equal(400, mapper.Map(errorCode));
+    }
 }

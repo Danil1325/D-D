@@ -41,6 +41,7 @@ using Microsoft.Extensions.DependencyInjection;
 // This alias lets both using-directives coexist without making the simple name
 // ambiguous below.
 using DomainDamageCalculator = DnDGame.Domain.Engine.Combat.IDamageCalculator;
+using DomainErrorCode = DnDGame.Domain.Enums.ErrorCode;
 
 namespace DnDGame.API.CompositionRoot;
 
@@ -83,11 +84,15 @@ public static class DependencyInjection
         // Registered here (rather than a 4th composition method) since this is the
         // one shared IErrorCodeHttpMapper instance for the whole API. Feature-specific
         // codes are added via Register(...) as each feature starts throwing them —
-        // currently only the Dice feature (see AddBattleTurnSystemServices) does.
+        // currently the Dice feature (see AddBattleTurnSystemServices) and the Deck
+        // feature's IDeckValidator codes (see DeckService).
         services.AddSingleton<IErrorCodeHttpMapper>(_ =>
         {
             var mapper = new ErrorCodeHttpMapper();
             mapper.Register(EngineErrorCodes.InvalidDice, StatusCodes.Status400BadRequest);
+            mapper.Register(DomainErrorCode.DECK_TOO_SMALL.ToString(), StatusCodes.Status400BadRequest);
+            mapper.Register(DomainErrorCode.DECK_TOO_LARGE.ToString(), StatusCodes.Status400BadRequest);
+            mapper.Register(DomainErrorCode.CARD_COPY_LIMIT_REACHED.ToString(), StatusCodes.Status400BadRequest);
             return mapper;
         });
 
@@ -178,9 +183,11 @@ public static class DependencyInjection
         services.AddScoped<IGameSessionRepository, MockGameSessionRepository>();
         services.AddScoped<IStoryNodeRepository, MockStoryNodeRepository>();
         services.AddScoped<ICardCollectionRepository, MockCardCollectionRepository>();
+        services.AddScoped<IDeckRepository, MockDeckRepository>();
 
         services.AddScoped<ICurrentPlayerService, MockCurrentPlayerService>();
         services.AddScoped<ICardService, CardService>();
+        services.AddScoped<IDeckService, DeckService>();
         return services;
     }
 }

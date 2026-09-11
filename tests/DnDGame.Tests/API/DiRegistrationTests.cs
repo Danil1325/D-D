@@ -171,17 +171,20 @@ public class DiRegistrationTests
     [InlineData(typeof(IGameSessionRepository))]
     [InlineData(typeof(IStoryNodeRepository))]
     [InlineData(typeof(ICardCollectionRepository))]
+    [InlineData(typeof(IDeckRepository))]
     public void MockData_AllRepositoriesResolve(Type serviceType)
     {
         using var provider = BuildAll();
         AssertResolves(provider, serviceType);
     }
 
-    [Fact]
-    public void MockData_CardServiceResolves()
+    [Theory]
+    [InlineData(typeof(ICardService))]
+    [InlineData(typeof(IDeckService))]
+    public void MockData_ApplicationServicesResolve(Type serviceType)
     {
         using var provider = BuildAll();
-        AssertResolves(provider, typeof(ICardService));
+        AssertResolves(provider, serviceType);
     }
 
     /// <summary>
