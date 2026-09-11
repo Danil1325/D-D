@@ -46,12 +46,82 @@ public class CardCollection : BaseEntity
     {
         var playerCard = Cards.SingleOrDefault(card => card.CardId == cardId)
             ?? throw new KeyNotFoundException("The card is not in this collection.");
+
+        return CreateCardDetails(playerCard, visibilityRules ?? new CardVisibilityRules());
+    }
+
+    /// <summary>
+    /// Searches cards without changing collection membership, ownership, quantity,
+    /// visibility, or unlock state. Filters use the stored card definition while
+    /// returned data continues to honor locked-card visibility rules.
+    /// </summary>
+    public IReadOnlyList<CardDetails> SearchCards(
+        string? query,
+        CardSearchOptions? options = null,
+        CardVisibilityRules? visibilityRules = null)
+    {
+        options ??= new CardSearchOptions();
+        var rules = visibilityRules ?? new CardVisibilityRules();
+        var searchTerm = query?.Trim();
+
+        IEnumerable<PlayerCard> matchingCards = Cards.Where(playerCard => playerCard.Card is not null);
+
+        if (!string.IsNullOrWhiteSpace(searchTerm))
+        {
+            matchingCards = matchingCards.Where(playerCard =>
+                playerCard.Card!.Name.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
+                playerCard.Card.Description.Contains(searchTerm, StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (options.Rarity is not null)
+        {
+            matchingCards = matchingCards.Where(playerCard => playerCard.Card!.Rarity == options.Rarity);
+        }
+
+        if (options.Category is not null)
+        {
+            matchingCards = matchingCards.Where(playerCard => playerCard.Card!.Category == options.Category);
+        }
+
+        if (options.Type is not null)
+        {
+            matchingCards = matchingCards.Where(playerCard => playerCard.Card!.CardType == options.Type);
+        }
+
+        if (options.Unlocked is not null)
+        {
+            matchingCards = matchingCards.Where(playerCard => playerCard.Unlocked == options.Unlocked);
+        }
+
+        return Sort(matchingCards, options)
+            .Select(playerCard => CreateCardDetails(playerCard, rules))
+            .ToList();
+    }
+
+    private static IOrderedEnumerable<PlayerCard> Sort(
+        IEnumerable<PlayerCard> cards,
+        CardSearchOptions options)
+    {
+        return (options.SortBy, options.SortOrder) switch
+        {
+            (CardSortBy.Name, SortOrder.Ascending) => cards.OrderBy(card => card.Card!.Name, StringComparer.OrdinalIgnoreCase).ThenBy(card => card.CardId),
+            (CardSortBy.Name, SortOrder.Descending) => cards.OrderByDescending(card => card.Card!.Name, StringComparer.OrdinalIgnoreCase).ThenBy(card => card.CardId),
+            (CardSortBy.Rarity, SortOrder.Ascending) => cards.OrderBy(card => card.Card!.Rarity).ThenBy(card => card.Card!.Name, StringComparer.OrdinalIgnoreCase),
+            (CardSortBy.Rarity, SortOrder.Descending) => cards.OrderByDescending(card => card.Card!.Rarity).ThenBy(card => card.Card!.Name, StringComparer.OrdinalIgnoreCase),
+            (CardSortBy.EnergyCost, SortOrder.Ascending) => cards.OrderBy(card => card.Card!.BaseCost).ThenBy(card => card.Card!.Name, StringComparer.OrdinalIgnoreCase),
+            (CardSortBy.EnergyCost, SortOrder.Descending) => cards.OrderByDescending(card => card.Card!.BaseCost).ThenBy(card => card.Card!.Name, StringComparer.OrdinalIgnoreCase),
+            _ => throw new ArgumentOutOfRangeException(nameof(options), "Unknown card sorting options.")
+        };
+    }
+
+    private static CardDetails CreateCardDetails(PlayerCard playerCard, CardVisibilityRules visibilityRules)
+    {
         var card = playerCard.Card
             ?? throw new InvalidOperationException("Card details are unavailable because the card definition is missing.");
 
         var visibility = playerCard.Unlocked
             ? CardInformationVisibility.Complete
-            : (visibilityRules ?? new CardVisibilityRules()).Resolve(playerCard.VisibilityRule);
+            : visibilityRules.Resolve(playerCard.VisibilityRule);
 
         return new CardDetails
         {
