@@ -1,5 +1,6 @@
 using DnDGame.Domain.Common;
 using DnDGame.Domain.Entities.Classes;
+using DnDGame.Domain.Entities.Cards;
 using DnDGame.Domain.Entities.Game;
 using DnDGame.Domain.Entities.Races;
 
@@ -50,6 +51,7 @@ public class PlayerCharacter : BaseEntity
 
     public ICollection<CharacterTalent> Talents { get; set; } = new List<CharacterTalent>();
     public ICollection<GameSession> GameSessions { get; set; } = new List<GameSession>();
+    public CardCollection? CardCollection { get; set; }
 
     // Note: the character's portrait image is deliberately NOT stored on this entity.
     // It is resolved by looking up CharacterPortrait for (RaceId, ClassId) whenever

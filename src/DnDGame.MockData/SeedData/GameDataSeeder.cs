@@ -13,6 +13,7 @@ internal static class GameDataSeeder
         ClassSeedData.Seed(store);
         PortraitSeedData.Seed(store);
         TalentSeedData.Seed(store);
+        CardSeedData.Seed(store);
         EnemySeedData.Seed(store);
         AdventureSeedData.Seed(store);
     }

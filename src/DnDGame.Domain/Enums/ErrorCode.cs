@@ -58,5 +58,14 @@ public enum ErrorCode
     /// <summary>
     /// The card cannot be played for a general reason.
     /// </summary>
-    CARD_CANNOT_BE_PLAYED = 10
+    CARD_CANNOT_BE_PLAYED = 10,
+
+    /// <summary>The requested ability or spell has not been unlocked by the player.</summary>
+    ABILITY_LOCKED = 11,
+
+    /// <summary>The player's class does not meet an ability or spell requirement.</summary>
+    CLASS_REQUIREMENT_NOT_MET = 12,
+
+    /// <summary>The player's level does not meet an ability or spell requirement.</summary>
+    LEVEL_REQUIREMENT_NOT_MET = 13
 }

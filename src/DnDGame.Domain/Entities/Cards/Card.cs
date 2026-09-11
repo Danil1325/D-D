@@ -40,9 +40,49 @@ public class Card : BaseEntity
     public int BaseCost { get; set; }
 
     /// <summary>
+    /// Resource consumed when this card is used as an ability or spell. This is
+    /// an alias for <see cref="BaseCost"/>, so gameplay has one source of truth
+    /// for card cost.
+    /// </summary>
+    public int ResourceCost
+    {
+        get => BaseCost;
+        set => BaseCost = value;
+    }
+
+    /// <summary>Optional class restriction for an ability or spell.</summary>
+    public int? RequiredClassId { get; set; }
+
+    /// <summary>Minimum character level needed to use an ability or spell.</summary>
+    public int RequiredLevel { get; set; } = 1;
+
+    /// <summary>
     /// The base damage value of the card (if applicable).
     /// </summary>
     public int BaseDamage { get; set; }
+
+    /// <summary>Equipment/discipline classification from the card catalogue.</summary>
+    public string CardClass { get; set; } = string.Empty;
+
+    public string? DamageType { get; set; }
+    public int? Power { get; set; }
+    public string? PowerType { get; set; }
+    public int? Defense { get; set; }
+    public string? DefenseType { get; set; }
+    public string? Range { get; set; }
+    public string? Weight { get; set; }
+    public string? Charges { get; set; }
+    public string? Activation { get; set; }
+
+    /// <summary>Name of the card's active effect, preserved independently of the engine effect category.</summary>
+    public string ActiveEffect { get; set; } = string.Empty;
+
+    /// <summary>Always-on or conditional special behavior described by the card.</summary>
+    public string PassiveEffect { get; set; } = string.Empty;
+
+    public string Bonus { get; set; } = string.Empty;
+    public string Penalty { get; set; } = string.Empty;
+    public string Lore { get; set; } = string.Empty;
 
     /// <summary>
     /// The type of target this card can affect.

@@ -10,5 +10,6 @@ public enum CardRarity
     Rare = 2,
     Epic = 3,
     Legendary = 4,
-    Mythic = 5
+    Mythic = 5,
+    VeryRare = 6
 }
