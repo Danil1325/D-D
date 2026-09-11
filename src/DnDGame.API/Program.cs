@@ -4,13 +4,8 @@
 //   2) which middleware handles each incoming HTTP request (the "app" section)
 // No game logic belongs here — this stays infrastructure-only, even after later phases.
 
+using DnDGame.API.CompositionRoot;
 using DnDGame.API.Middleware;
-using DnDGame.BusinessLayer.Common.Errors;
-using DnDGame.BusinessLayer.Repositories.Interfaces;
-using DnDGame.BusinessLayer.Services.Interfaces;
-using DnDGame.MockData;
-using DnDGame.MockData.Repositories;
-using DnDGame.MockData.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -47,34 +42,13 @@ builder.Services.AddSwaggerGen(options =>
     }
 });
 
-// --- Mock data (Phase 2 equivalent for the card-battle feature) ---
-//
-// Only the pieces explicitly approved as "safe to implement now" are registered
-// here: the shared in-memory store, the pre-existing IEnemyRepository, and the
-// mock current-player abstraction. Repositories for Player/Card/Deck are NOT
-// registered yet — those Domain entities don't exist until the team confirms the
-// Player-vs-PlayerCharacter decision and Person 2's Card/Deck contracts.
-//
-// CreateSeededStore() is used directly (instead of an IServiceCollection
-// extension method like AddMockData()) because MockData is a plain class library
-// with no dependency on Microsoft.Extensions.DependencyInjection — adding that
-// package reference is a call for whoever owns that project's dependency list,
-// not something to introduce as a side effect of this feature's DI wiring.
-var mockDataStore = MockDataBootstrapper.CreateSeededStore();
-builder.Services.AddSingleton(mockDataStore);
-builder.Services.AddScoped<IEnemyRepository, MockEnemyRepository>();
-builder.Services.AddScoped<ICurrentPlayerService, MockCurrentPlayerService>();
-
-// --- Cross-cutting infrastructure ---
-builder.Services.AddSingleton<IErrorCodeHttpMapper, ErrorCodeHttpMapper>();
-
-// Still to come once contracts are confirmed:
-//   Person 2: IPlayerRepository/MockPlayerRepository (pending Player decision),
-//             ICardRepository/MockCardRepository, IDeckRepository/MockDeckRepository
-//   Person 1: IBattleStateStore/InMemoryBattleStateStore (needs the real BattleState type)
-//   Both:     BattleService, DiceService, DeckService's engine calls
-// and Phase 7 will replace the Mock* repositories with DataAccessLayer's EF Core
-// ones — only the two lines above (and their DataAccessLayer equivalents) change.
+// --- Feature components, one extension method per owner (see CompositionRoot) ---
+// Card-battle feature (Persoana 2), battle/turn system integration surface
+// (Persoana 1), and the mock-data phase. The container is intentionally lazy:
+// the unresolved "Person 1 seams" documented there don't prevent startup.
+builder.Services.AddCardBattleServices();
+builder.Services.AddBattleTurnSystemServices();
+builder.Services.AddMockData();
 
 var app = builder.Build();
 
