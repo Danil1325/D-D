@@ -40,6 +40,23 @@ public class Card : BaseEntity
     public int BaseCost { get; set; }
 
     /// <summary>
+    /// Resource consumed when this card is used as an ability or spell. This is
+    /// an alias for <see cref="BaseCost"/>, so gameplay has one source of truth
+    /// for card cost.
+    /// </summary>
+    public int ResourceCost
+    {
+        get => BaseCost;
+        set => BaseCost = value;
+    }
+
+    /// <summary>Optional class restriction for an ability or spell.</summary>
+    public int? RequiredClassId { get; set; }
+
+    /// <summary>Minimum character level needed to use an ability or spell.</summary>
+    public int RequiredLevel { get; set; } = 1;
+
+    /// <summary>
     /// The base damage value of the card (if applicable).
     /// </summary>
     public int BaseDamage { get; set; }
