@@ -8,6 +8,7 @@ using DnDGame.Domain.Engine.Enums;
 using DnDGame.Domain.Engine.Initiative;
 using DnDGame.Domain.Engine.Models;
 using DnDGame.Domain.Engine.Turn;
+using DnDGame.Domain.Entities.Cards;
 
 namespace DnDGame.Domain.Engine.Battle;
 
