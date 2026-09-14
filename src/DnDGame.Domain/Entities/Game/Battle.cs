@@ -3,6 +3,7 @@ namespace DnDGame.Domain.Entities.Game;
 using DnDGame.Domain.Common;
 using DnDGame.Domain.Engine.Enums;
 using DnDGame.Domain.Engine.Models;
+using DnDGame.Domain.Entities.Enemies;
 using DnDGame.Domain.Enums;
 
 /// <summary>
@@ -64,6 +65,18 @@ public class Battle : BaseEntity
     /// Notes or description about the battle outcome/events.
     /// </summary>
     public string? Notes { get; set; } = string.Empty;
+
+    /// <summary>
+    /// The ID of the enemy this battle is fought against. Resolved once at battle
+    /// start (from the game session's current story node) and persisted, so it can
+    /// be re-resolved on every later request without re-walking the story graph.
+    /// </summary>
+    public int EnemyId { get; set; }
+
+    /// <summary>
+    /// Navigation property to the enemy.
+    /// </summary>
+    public virtual Enemy? Enemy { get; set; }
 
     /// <summary>
     /// The current block/shield value for the enemy or opponent.
