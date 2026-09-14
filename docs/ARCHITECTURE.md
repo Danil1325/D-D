@@ -523,3 +523,17 @@ Added on `alexandru` after this document was written, per the remaining Person 3
 None of the §10 Person 1 seams were touched. `InMemoryGameDataStore` gained two additive lists
 (`CardCollections`, `Decks`); no existing store field was removed or restructured. Test count
 grew from 229 to 262 (see individual PRs for the breakdown).
+
+## 15. Person 3 follow-up: Battle data-access layer
+
+Added on `alexandru`, ahead of the Battle API (`BattleService`/`BattleController` not yet
+built): `IBattleRepository`/`MockBattleRepository` and `IBattleDeckRepository`/
+`MockBattleDeckRepository`, following the existing `Mock*Repository` pattern.
+`InMemoryGameDataStore` gained two additive lists (`Battles`, `BattleDecks`). `BattleDeck`
+gained a `BattleId` FK (1:1 — one battle has exactly one battle deck) since none existed
+before, matching the `BattleDeck.DeckId`/`Deck.CharacterId` scalar-FK style already used
+elsewhere in this file — no navigation property was added, consistent with `Deck.CharacterId`
+having none either. `Battle` was left unchanged; the relationship only needs a FK on one side.
+`BattleState`'s `ActiveEffects`, structured `BattleLog`, `RewardsGranted`, and its
+PlayerTurn/EnemyTurn `BattleStatus` still have no persisted equivalent on `Battle`/`BattleDeck`
+— this remains open for whoever builds `BattleService`'s state-reconciliation logic.

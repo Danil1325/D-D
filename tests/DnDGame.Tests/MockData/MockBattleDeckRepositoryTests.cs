@@ -12,8 +12,8 @@ public class MockBattleDeckRepositoryTests
         var store = new InMemoryGameDataStore();
         var repository = new MockBattleDeckRepository(store);
 
-        var first = await repository.AddAsync(new BattleDeck { DeckId = 1 });
-        var second = await repository.AddAsync(new BattleDeck { DeckId = 1 });
+        var first = await repository.AddAsync(new BattleDeck { BattleId = 1, DeckId = 1 });
+        var second = await repository.AddAsync(new BattleDeck { BattleId = 2, DeckId = 1 });
 
         Assert.Equal(1, first.Id);
         Assert.Equal(2, second.Id);
@@ -24,7 +24,7 @@ public class MockBattleDeckRepositoryTests
     {
         var store = new InMemoryGameDataStore();
         var repository = new MockBattleDeckRepository(store);
-        var battleDeck = await repository.AddAsync(new BattleDeck { DeckId = 1 });
+        var battleDeck = await repository.AddAsync(new BattleDeck { BattleId = 1, DeckId = 1 });
 
         var found = await repository.GetByIdAsync(battleDeck.Id);
 
@@ -44,26 +44,26 @@ public class MockBattleDeckRepositoryTests
     }
 
     [Fact]
-    public async Task GetByDeckIdAsync_ReturnsBattleDeckForThatDeck()
+    public async Task GetByBattleIdAsync_ReturnsBattleDeckForThatBattle()
     {
         var store = new InMemoryGameDataStore();
         var repository = new MockBattleDeckRepository(store);
-        await repository.AddAsync(new BattleDeck { DeckId = 1 });
-        var forDeckTwo = await repository.AddAsync(new BattleDeck { DeckId = 2 });
+        await repository.AddAsync(new BattleDeck { BattleId = 1, DeckId = 1 });
+        var forBattleTwo = await repository.AddAsync(new BattleDeck { BattleId = 2, DeckId = 1 });
 
-        var found = await repository.GetByDeckIdAsync(2);
+        var found = await repository.GetByBattleIdAsync(2);
 
         Assert.NotNull(found);
-        Assert.Equal(forDeckTwo.Id, found!.Id);
+        Assert.Equal(forBattleTwo.Id, found!.Id);
     }
 
     [Fact]
-    public async Task GetByDeckIdAsync_UnknownDeckId_ReturnsNull()
+    public async Task GetByBattleIdAsync_UnknownBattleId_ReturnsNull()
     {
         var store = new InMemoryGameDataStore();
         var repository = new MockBattleDeckRepository(store);
 
-        var found = await repository.GetByDeckIdAsync(999);
+        var found = await repository.GetByBattleIdAsync(999);
 
         Assert.Null(found);
     }

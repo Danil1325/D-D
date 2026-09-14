@@ -18,9 +18,9 @@ public class MockBattleDeckRepository : IBattleDeckRepository
         return Task.FromResult(battleDeck);
     }
 
-    public Task<BattleDeck?> GetByDeckIdAsync(int deckId)
+    public Task<BattleDeck?> GetByBattleIdAsync(int battleId)
     {
-        var battleDeck = _store.BattleDecks.FirstOrDefault(bd => bd.DeckId == deckId);
+        var battleDeck = _store.BattleDecks.FirstOrDefault(bd => bd.BattleId == battleId);
         return Task.FromResult(battleDeck);
     }
 

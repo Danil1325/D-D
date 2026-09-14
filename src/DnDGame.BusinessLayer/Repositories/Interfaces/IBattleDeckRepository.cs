@@ -7,12 +7,10 @@ public interface IBattleDeckRepository
     Task<BattleDeck?> GetByIdAsync(int id);
 
     /// <summary>
-    /// The runtime battle-deck built from a given source <see cref="Deck"/>, if one
-    /// has been created. There is currently no persisted link from a
-    /// <see cref="Battle"/> to its <see cref="BattleDeck"/> — see
-    /// docs/ARCHITECTURE.md; callers resolve one via the source deck id instead.
+    /// The runtime battle-deck for a given battle. One battle has exactly one
+    /// battle deck (the human player's).
     /// </summary>
-    Task<BattleDeck?> GetByDeckIdAsync(int deckId);
+    Task<BattleDeck?> GetByBattleIdAsync(int battleId);
 
     Task<BattleDeck> AddAsync(BattleDeck battleDeck);
 

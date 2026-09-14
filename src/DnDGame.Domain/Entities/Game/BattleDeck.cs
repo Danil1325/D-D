@@ -11,6 +11,12 @@ using DnDGame.Domain.Entities.Cards;
 public class BattleDeck : BaseEntity
 {
     /// <summary>
+    /// The ID of the battle this deck's runtime state belongs to. One battle has
+    /// exactly one battle deck (the human player's) — see docs/ARCHITECTURE.md.
+    /// </summary>
+    public int BattleId { get; set; }
+
+    /// <summary>
     /// The ID of the original deck this battle deck is based on.
     /// </summary>
     public int DeckId { get; set; }
