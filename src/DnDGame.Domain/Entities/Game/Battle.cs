@@ -86,4 +86,10 @@ public class Battle : BaseEntity
     /// Used for heal effect cap calculations.
     /// </summary>
     public int PlayerMaxHealth { get; set; }
+
+    /// <summary>
+    /// Whether end-of-battle rewards (XP, loot, etc.) have already been granted for
+    /// this battle. Prevents granting rewards more than once for the same battle.
+    /// </summary>
+    public bool RewardsGranted { get; set; } = false;
 }
