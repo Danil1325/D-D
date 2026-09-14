@@ -172,6 +172,8 @@ public class DiRegistrationTests
     [InlineData(typeof(IStoryNodeRepository))]
     [InlineData(typeof(ICardCollectionRepository))]
     [InlineData(typeof(IDeckRepository))]
+    [InlineData(typeof(IBattleRepository))]
+    [InlineData(typeof(IBattleDeckRepository))]
     public void MockData_AllRepositoriesResolve(Type serviceType)
     {
         using var provider = BuildAll();
