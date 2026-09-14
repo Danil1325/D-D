@@ -93,6 +93,20 @@ public static class DependencyInjection
             mapper.Register(DomainErrorCode.DECK_TOO_SMALL.ToString(), StatusCodes.Status400BadRequest);
             mapper.Register(DomainErrorCode.DECK_TOO_LARGE.ToString(), StatusCodes.Status400BadRequest);
             mapper.Register(DomainErrorCode.CARD_COPY_LIMIT_REACHED.ToString(), StatusCodes.Status400BadRequest);
+
+            // Domain.Engine.Common.EngineErrorCodes — what IBattleEngine's EngineResult
+            // failures actually carry (see BattleService). Only the codes its public
+            // methods (StartBattle/PlayCard/EndTurn/ExecuteEnemyTurn) can plausibly
+            // return are registered here; ConsequenceAlreadyApplied belongs to the
+            // unrelated adventure/story-node flow and isn't guessed at.
+            mapper.Register(EngineErrorCodes.BattleNotFound, StatusCodes.Status404NotFound);
+            mapper.Register(EngineErrorCodes.BattleAlreadyFinished, StatusCodes.Status409Conflict);
+            mapper.Register(EngineErrorCodes.NotPlayerTurn, StatusCodes.Status409Conflict);
+            mapper.Register(EngineErrorCodes.InvalidAction, StatusCodes.Status400BadRequest);
+            mapper.Register(EngineErrorCodes.PlayerDead, StatusCodes.Status409Conflict);
+            mapper.Register(EngineErrorCodes.EnemyDead, StatusCodes.Status409Conflict);
+            mapper.Register(EngineErrorCodes.MissingCombatRule, StatusCodes.Status500InternalServerError);
+            mapper.Register(EngineErrorCodes.RewardsAlreadyGranted, StatusCodes.Status409Conflict);
             return mapper;
         });
 
