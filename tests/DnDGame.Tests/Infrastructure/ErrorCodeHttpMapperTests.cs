@@ -79,4 +79,24 @@ public class ErrorCodeHttpMapperTests
 
         Assert.Equal(400, mapper.Map(errorCode));
     }
+
+    [Theory]
+    [InlineData(EngineErrorCodes.BattleNotFound, 404)]
+    [InlineData(EngineErrorCodes.BattleAlreadyFinished, 409)]
+    [InlineData(EngineErrorCodes.NotPlayerTurn, 409)]
+    [InlineData(EngineErrorCodes.InvalidAction, 400)]
+    [InlineData(EngineErrorCodes.PlayerDead, 409)]
+    [InlineData(EngineErrorCodes.EnemyDead, 409)]
+    [InlineData(EngineErrorCodes.MissingCombatRule, 500)]
+    [InlineData(EngineErrorCodes.RewardsAlreadyGranted, 409)]
+    public void CompositionRoot_RegistersBattleEngineCodes(string errorCode, int expectedStatus)
+    {
+        var services = new ServiceCollection();
+        services.AddCardBattleServices();
+
+        using var provider = services.BuildServiceProvider();
+        var mapper = provider.GetRequiredService<IErrorCodeHttpMapper>();
+
+        Assert.Equal(expectedStatus, mapper.Map(errorCode));
+    }
 }
