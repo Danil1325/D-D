@@ -26,3 +26,6 @@ secrets.json
 node_modules/
 dist/
 build/
+
+# Project Instructions
+PROJECT_CONTEXT.md

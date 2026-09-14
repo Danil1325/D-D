@@ -43,6 +43,16 @@ public class InMemoryGameDataStore
     public List<GameSession> GameSessions { get; } = new();
     public List<SessionLogEntry> SessionLogEntries { get; } = new();
 
+    // --- Runtime / gameplay data (empty until a PlayerCharacter unlocks or is given a card) ---
+    public List<CardCollection> CardCollections { get; } = new();
+
+    // --- Runtime / gameplay data (empty until a PlayerCharacter builds a deck) ---
+    public List<Deck> Decks { get; } = new();
+
+    // --- Runtime / gameplay data (empty until a battle is started) ---
+    public List<Battle> Battles { get; } = new();
+    public List<BattleDeck> BattleDecks { get; } = new();
+
     // Id counters only for the runtime tables above — every reference-data row gets
     // an explicit, hardcoded Id from its seed data instead, so cross-references
     // between seed files (e.g. a Choice pointing at an Enemy) are predictable.
@@ -50,9 +60,15 @@ public class InMemoryGameDataStore
     private int _nextCharacterTalentId = 1;
     private int _nextGameSessionId = 1;
     private int _nextLogEntryId = 1;
+    private int _nextDeckId = 1;
+    private int _nextBattleId = 1;
+    private int _nextBattleDeckId = 1;
 
     public int GetNextCharacterId() => _nextCharacterId++;
     public int GetNextCharacterTalentId() => _nextCharacterTalentId++;
     public int GetNextGameSessionId() => _nextGameSessionId++;
     public int GetNextLogEntryId() => _nextLogEntryId++;
+    public int GetNextDeckId() => _nextDeckId++;
+    public int GetNextBattleId() => _nextBattleId++;
+    public int GetNextBattleDeckId() => _nextBattleDeckId++;
 }

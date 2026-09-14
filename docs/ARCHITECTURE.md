@@ -499,3 +499,114 @@ for the DI tests).
     repository; player collection/unlock is exercised via `CardCollection` in tests.
 13. **No new controllers** in this slice (P2 contract); endpoints arrive with the controllers
     phase, consuming the engines via the DI container.
+
+---
+
+## 14. Person 3 follow-up: Dice, Card, Deck features
+
+Added on `alexandru` after this document was written, per the remaining Person 3 scope:
+
+- **Dice**: `DiceRequestDto`/`DiceResultDto`, `IDiceService`/`DiceService` (wraps `IDiceEngine`),
+  `DiceController` (`POST /api/dice/roll`). `EngineErrorCodes.InvalidDice` mapped to 400.
+- **Card**: `ICardCollectionRepository`/`MockCardCollectionRepository` (lazily creates an empty
+  `CardCollection` per player character), `CardDetailsDto`/`CardSearchRequestDto`,
+  `ICardService`/`CardService` (thin wrapper over `CardCollection.SearchCards`/`GetCardDetails`,
+  no filtering/sorting logic duplicated), `CardController` (`GET /api/card`, `GET /api/card/{id}`).
+- **Deck**: `IDeckRepository`/`MockDeckRepository` (CRUD + catalogue card lookup by id — no
+  dedicated card-catalogue repository exists yet, so lookup lives here), `DeckResponseDto`/
+  `DeckSaveRequestDto`/`DeckValidationResultDto`, `IDeckService`/`DeckService` (ownership-checked
+  CRUD over the current player's decks, plus validation via the existing `IDeckValidator`),
+  `DeckController` (`GET/POST /api/deck`, `GET/PUT/DELETE /api/deck/{id}`,
+  `POST /api/deck/{id}/validate`). `DECK_TOO_SMALL`/`DECK_TOO_LARGE`/`CARD_COPY_LIMIT_REACHED`
+  mapped to 400.
+
+None of the §10 Person 1 seams were touched. `InMemoryGameDataStore` gained two additive lists
+(`CardCollections`, `Decks`); no existing store field was removed or restructured. Test count
+grew from 229 to 262 (see individual PRs for the breakdown).
+
+## 15. Person 3 follow-up: Battle data-access layer
+
+Added on `alexandru`, ahead of the Battle API (`BattleService`/`BattleController` not yet
+built): `IBattleRepository`/`MockBattleRepository` and `IBattleDeckRepository`/
+`MockBattleDeckRepository`, following the existing `Mock*Repository` pattern.
+`InMemoryGameDataStore` gained two additive lists (`Battles`, `BattleDecks`). `BattleDeck`
+gained a `BattleId` FK (1:1 — one battle has exactly one battle deck) since none existed
+before, matching the `BattleDeck.DeckId`/`Deck.CharacterId` scalar-FK style already used
+elsewhere in this file — no navigation property was added, consistent with `Deck.CharacterId`
+having none either. `Battle` was left unchanged; the relationship only needs a FK on one side.
+`BattleState`'s `ActiveEffects`, structured `BattleLog`, `RewardsGranted`, and its
+PlayerTurn/EnemyTurn `BattleStatus` still had no persisted equivalent on `Battle`/`BattleDeck`
+at this point — closed out in §16 below.
+
+## 16. Person 3 follow-up: Battle API (complete)
+
+Added on `alexandru`, completing the Battle API on top of §15's repositories. The Battle
+data model, DTOs, service, and controller are now fully built and wired — see §7's conflict
+table and PROJECT_CONTEXT.md's original blocker list, both now superseded by this section.
+
+**Battle/BattleDeck persistence gaps closed** (all additive, reusing existing Engine types —
+no new types invented):
+- `Battle.RewardsGranted` (`bool`) — mirrors `BattleState.RewardsGranted`.
+- `Battle.CurrentTurn` (`Domain.Engine.Enums.TurnType`) — turn ownership, reused as-is from
+  the Engine. Kept distinct from `Battle.Status` (`GameSessionStatus`): `Status` is the
+  terminal outcome (in progress/victory/defeat/abandoned), `CurrentTurn` is whose turn it is
+  — two different concerns that happened to be conflated into one enum
+  (`Domain.Engine.Enums.BattleStatus`) on the transient `BattleState` side.
+- `Battle.BattleLog` (`List<Domain.Engine.Models.BattleLogEntry>`) and `Battle.ActiveEffects`
+  (`IList<Domain.Engine.Models.ActiveEffect>`) — both already-public Engine types, reused
+  directly rather than duplicated.
+- `Battle.EnemyId` (+ `Enemy?` nav) — `Battle` previously had `EnemyCurrentHealth`/`EnemyBlock`
+  but no link to *which* `Enemy`. Resolved once at `StartBattle` from the game session's
+  current `StoryNode.EnemyId`/`Choice.EnemyId` and persisted, so later requests
+  (`GetBattleState`/`PlayCard`/`EndTurn`) can re-resolve the same `Enemy` without re-walking
+  the story graph.
+
+**DTOs** (`BusinessLayer/Dtos/Battles/`): `CardInstanceDto`, `ActiveEffectDto`,
+`BattleLogEntryDto` (reuses the existing `DiceResultDto` for its nested dice roll),
+`BattleStateDto` (composed from **both** `Battle` and `BattleDeck` — see §15 for why both
+models exist; `DrawPile`/`DiscardPile` exposed only as counts, not contents), `StartBattleRequestDto`
+(`GameSessionId` + `DeckId` — no `EnemyId`, since the enemy is resolved from the story graph,
+not chosen by the client), `PlayCardRequestDto` (`CardInstanceId` only — `IBattleEngine.PlayCard`
+takes no target parameter).
+
+**`IBattleService`/`BattleService`** (`BusinessLayer/Services/`): `StartBattleAsync`,
+`GetBattleStateAsync`, `PlayCardAsync`, `EndTurnAsync`, `GetBattleLogAsync`. Reuses
+`BusinessLayer.Engines.IDeckEngine.CreateBattleDeck` (Persoana 2's, already implemented)
+rather than reimplementing battle-deck construction. Two private helpers,
+`BuildState`/`ApplyState`, are the sole two-way translation between persisted
+(`Battle`+`BattleDeck`) and runtime (`BattleContext`/`BattleState`) — every mutating method
+routes through them, so the reconciliation logic exists in exactly one place. `EndTurnAsync`
+auto-chains into `ExecuteEnemyTurn` when the turn passes to the enemy, since there is no
+separate endpoint for the client to trigger that step. `IBattleEngine`'s `EngineResult`
+failures convert straight to `DomainException(result.ErrorCode, result.Message)` at the
+boundary (its codes are already strings, unlike Persona 2's enum-coded `EngineResult`).
+
+**`BattleController`** (`API/Controllers/`): `POST /api/battle/start`,
+`GET /api/battle/{battleId}`, `POST /api/battle/{battleId}/play-card`,
+`POST /api/battle/{battleId}/end-turn`, `GET /api/battle/{battleId}/log`. Thin, same shape as
+`DiceController`/`DeckController`.
+
+**HTTP error mapping**: `Domain.Engine.Common.EngineErrorCodes` — the codes `IBattleEngine`'s
+`EngineResult` failures actually carry — registered in `AddCardBattleServices()`'s
+`IErrorCodeHttpMapper` alongside the Dice/Deck codes: `BattleNotFound`→404,
+`BattleAlreadyFinished`→409, `NotPlayerTurn`→409, `InvalidAction`→400, `PlayerDead`→409,
+`EnemyDead`→409, `MissingCombatRule`→500, `RewardsAlreadyGranted`→409.
+`ConsequenceAlreadyApplied` (also in `EngineErrorCodes`) was deliberately left unregistered —
+it belongs to the unrelated adventure/story-node flow, not anything this feature produces.
+
+**Still a Person 1 seam, deliberately**: `Domain.Engine.Battle.IBattleEngine` itself is *not*
+registered in `AddBattleTurnSystemServices()` — its constructor requires
+`Domain.Engine.{Cards,Deck,Hand,Effects}` implementations and `IEnemyDefenseRule`, none of
+which exist on this branch (see §10). `BattleService`/`BattleController` are real, complete
+code, not stubs — they simply won't resolve/function until Persona 1 delivers those seams.
+Pinned via `DiRegistrationTests.Persona1_Seam_BattleServiceNotResolvableUntilBattleEngineLands`,
+same convention as the existing `IEffectEngine` seam test — expected to flip green
+automatically once the seam is filled.
+
+**Tests**: `BattleServiceTests` (service-layer orchestration, using a hand-written
+`IBattleEngine` test double — same technique as `DiRegistrationTests.StubDamageCalculator`,
+since the real engine isn't resolvable), plus `MockBattleRepositoryTests`/
+`MockBattleDeckRepositoryTests` and additional `DiRegistrationTests`/`ErrorCodeHttpMapperTests`
+cases. No controller-level tests were added — there's no precedent for that in this codebase
+(`DiceController`/`DeckController` have none either); coverage lives entirely at the service
+layer the controller thinly wraps. Test count grew from 262 (§14) to 297.

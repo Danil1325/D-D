@@ -1,4 +1,7 @@
+using DnDGame.API.CompositionRoot;
 using DnDGame.BusinessLayer.Common.Errors;
+using DnDGame.Domain.Engine.Common;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace DnDGame.Tests.Infrastructure;
 
@@ -48,5 +51,52 @@ public class ErrorCodeHttpMapperTests
         mapper.Register(ErrorCodes.NotFound, 418);
 
         Assert.Equal(418, mapper.Map(ErrorCodes.NotFound));
+    }
+
+    [Fact]
+    public void CompositionRoot_RegistersInvalidDiceAs400()
+    {
+        var services = new ServiceCollection();
+        services.AddCardBattleServices();
+
+        using var provider = services.BuildServiceProvider();
+        var mapper = provider.GetRequiredService<IErrorCodeHttpMapper>();
+
+        Assert.Equal(400, mapper.Map(EngineErrorCodes.InvalidDice));
+    }
+
+    [Theory]
+    [InlineData(nameof(DnDGame.Domain.Enums.ErrorCode.DECK_TOO_SMALL))]
+    [InlineData(nameof(DnDGame.Domain.Enums.ErrorCode.DECK_TOO_LARGE))]
+    [InlineData(nameof(DnDGame.Domain.Enums.ErrorCode.CARD_COPY_LIMIT_REACHED))]
+    public void CompositionRoot_RegistersDeckValidationCodesAs400(string errorCode)
+    {
+        var services = new ServiceCollection();
+        services.AddCardBattleServices();
+
+        using var provider = services.BuildServiceProvider();
+        var mapper = provider.GetRequiredService<IErrorCodeHttpMapper>();
+
+        Assert.Equal(400, mapper.Map(errorCode));
+    }
+
+    [Theory]
+    [InlineData(EngineErrorCodes.BattleNotFound, 404)]
+    [InlineData(EngineErrorCodes.BattleAlreadyFinished, 409)]
+    [InlineData(EngineErrorCodes.NotPlayerTurn, 409)]
+    [InlineData(EngineErrorCodes.InvalidAction, 400)]
+    [InlineData(EngineErrorCodes.PlayerDead, 409)]
+    [InlineData(EngineErrorCodes.EnemyDead, 409)]
+    [InlineData(EngineErrorCodes.MissingCombatRule, 500)]
+    [InlineData(EngineErrorCodes.RewardsAlreadyGranted, 409)]
+    public void CompositionRoot_RegistersBattleEngineCodes(string errorCode, int expectedStatus)
+    {
+        var services = new ServiceCollection();
+        services.AddCardBattleServices();
+
+        using var provider = services.BuildServiceProvider();
+        var mapper = provider.GetRequiredService<IErrorCodeHttpMapper>();
+
+        Assert.Equal(expectedStatus, mapper.Map(errorCode));
     }
 }

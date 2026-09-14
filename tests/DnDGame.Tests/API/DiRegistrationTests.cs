@@ -130,11 +130,30 @@ public class DiRegistrationTests
         Assert.Contains("IDamageCalculator", exception.Message);
     }
 
+    /// <summary>
+    /// Registered but not yet resolvable: BattleService requires
+    /// Domain.Engine.Battle.IBattleEngine, which itself requires
+    /// Domain.Engine.{Cards,Deck,Hand,Effects} implementations and IEnemyDefenseRule —
+    /// none exist yet. Pinned so the expected failure flips to success automatically
+    /// once Persona 1 delivers those seams (see AddBattleTurnSystemServices).
+    /// </summary>
+    [Fact]
+    public void Persona1_Seam_BattleServiceNotResolvableUntilBattleEngineLands()
+    {
+        using var provider = BuildAll();
+
+        var exception = Assert.Throws<InvalidOperationException>(
+            () => provider.GetRequiredService<IBattleService>());
+
+        Assert.Contains("IBattleEngine", exception.Message);
+    }
+
     // --- Persona 1: battle/turn surface (implemented parts resolve) ---
 
     [Theory]
     [InlineData(typeof(IRandomNumberSource))]
     [InlineData(typeof(IDiceEngine))]
+    [InlineData(typeof(IDiceService))]
     [InlineData(typeof(DomainCombat.IDamageCalculator))]
     [InlineData(typeof(DomainCombat.IDamageRule))]
     [InlineData(typeof(DomainCombat.IDodgeCalculator))]
@@ -169,7 +188,20 @@ public class DiRegistrationTests
     [InlineData(typeof(ITalentRepository))]
     [InlineData(typeof(IGameSessionRepository))]
     [InlineData(typeof(IStoryNodeRepository))]
+    [InlineData(typeof(ICardCollectionRepository))]
+    [InlineData(typeof(IDeckRepository))]
+    [InlineData(typeof(IBattleRepository))]
+    [InlineData(typeof(IBattleDeckRepository))]
     public void MockData_AllRepositoriesResolve(Type serviceType)
+    {
+        using var provider = BuildAll();
+        AssertResolves(provider, serviceType);
+    }
+
+    [Theory]
+    [InlineData(typeof(ICardService))]
+    [InlineData(typeof(IDeckService))]
+    public void MockData_ApplicationServicesResolve(Type serviceType)
     {
         using var provider = BuildAll();
         AssertResolves(provider, serviceType);

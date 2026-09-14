@@ -1,6 +1,9 @@
 namespace DnDGame.Domain.Entities.Game;
 
 using DnDGame.Domain.Common;
+using DnDGame.Domain.Engine.Enums;
+using DnDGame.Domain.Engine.Models;
+using DnDGame.Domain.Entities.Enemies;
 using DnDGame.Domain.Enums;
 
 /// <summary>
@@ -64,6 +67,18 @@ public class Battle : BaseEntity
     public string? Notes { get; set; } = string.Empty;
 
     /// <summary>
+    /// The ID of the enemy this battle is fought against. Resolved once at battle
+    /// start (from the game session's current story node) and persisted, so it can
+    /// be re-resolved on every later request without re-walking the story graph.
+    /// </summary>
+    public int EnemyId { get; set; }
+
+    /// <summary>
+    /// Navigation property to the enemy.
+    /// </summary>
+    public virtual Enemy? Enemy { get; set; }
+
+    /// <summary>
     /// The current block/shield value for the enemy or opponent.
     /// Temporary shield that reduces incoming damage. Resets each turn.
     /// </summary>
@@ -86,4 +101,29 @@ public class Battle : BaseEntity
     /// Used for heal effect cap calculations.
     /// </summary>
     public int PlayerMaxHealth { get; set; }
+
+    /// <summary>
+    /// Whether end-of-battle rewards (XP, loot, etc.) have already been granted for
+    /// this battle. Prevents granting rewards more than once for the same battle.
+    /// </summary>
+    public bool RewardsGranted { get; set; } = false;
+
+    /// <summary>
+    /// Which combatant is currently acting. Distinct from <see cref="Status"/>,
+    /// which tracks the battle's terminal outcome (in progress/victory/defeat),
+    /// not turn ownership.
+    /// </summary>
+    public TurnType CurrentTurn { get; set; } = TurnType.Player;
+
+    /// <summary>
+    /// Chronological history of meaningful battle events (attacks, card plays,
+    /// dice rolls, etc.) for both combatants.
+    /// </summary>
+    public List<BattleLogEntry> BattleLog { get; set; } = new();
+
+    /// <summary>
+    /// Buffs/debuffs currently active on either combatant, discriminated by
+    /// <see cref="ActiveEffect.Target"/>.
+    /// </summary>
+    public IList<ActiveEffect> ActiveEffects { get; set; } = new List<ActiveEffect>();
 }

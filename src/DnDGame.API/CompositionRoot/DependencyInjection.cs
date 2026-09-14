@@ -19,10 +19,12 @@ using DnDGame.BusinessLayer.Engines;
 using DnDGame.BusinessLayer.Engines.Interfaces;
 using DnDGame.BusinessLayer.Repositories;
 using DnDGame.BusinessLayer.Repositories.Interfaces;
+using DnDGame.BusinessLayer.Services;
 using DnDGame.BusinessLayer.Services.Interfaces;
 using DnDGame.Domain.Configuration;
 using DnDGame.Domain.Engine.Battle;
 using DnDGame.Domain.Engine.Combat;
+using DnDGame.Domain.Engine.Common;
 using DnDGame.Domain.Engine.Dice;
 using DnDGame.Domain.Engine.EnemyActions;
 using DnDGame.Domain.Engine.Initiative;
@@ -30,6 +32,7 @@ using DnDGame.Domain.Engine.SavingThrows;
 using DnDGame.MockData;
 using DnDGame.MockData.Repositories;
 using DnDGame.MockData.Services;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 
 // There are two IDamageCalculator contracts on this branch:
@@ -38,6 +41,7 @@ using Microsoft.Extensions.DependencyInjection;
 // This alias lets both using-directives coexist without making the simple name
 // ambiguous below.
 using DomainDamageCalculator = DnDGame.Domain.Engine.Combat.IDamageCalculator;
+using DomainErrorCode = DnDGame.Domain.Enums.ErrorCode;
 
 namespace DnDGame.API.CompositionRoot;
 
@@ -76,7 +80,35 @@ public static class DependencyInjection
 
         // --- Rules / cross-cutting ---
         services.AddScoped<IDeckValidator, DeckValidator>();
-        services.AddSingleton<IErrorCodeHttpMapper, ErrorCodeHttpMapper>();
+
+        // Registered here (rather than a 4th composition method) since this is the
+        // one shared IErrorCodeHttpMapper instance for the whole API. Feature-specific
+        // codes are added via Register(...) as each feature starts throwing them —
+        // currently the Dice feature (see AddBattleTurnSystemServices) and the Deck
+        // feature's IDeckValidator codes (see DeckService).
+        services.AddSingleton<IErrorCodeHttpMapper>(_ =>
+        {
+            var mapper = new ErrorCodeHttpMapper();
+            mapper.Register(EngineErrorCodes.InvalidDice, StatusCodes.Status400BadRequest);
+            mapper.Register(DomainErrorCode.DECK_TOO_SMALL.ToString(), StatusCodes.Status400BadRequest);
+            mapper.Register(DomainErrorCode.DECK_TOO_LARGE.ToString(), StatusCodes.Status400BadRequest);
+            mapper.Register(DomainErrorCode.CARD_COPY_LIMIT_REACHED.ToString(), StatusCodes.Status400BadRequest);
+
+            // Domain.Engine.Common.EngineErrorCodes — what IBattleEngine's EngineResult
+            // failures actually carry (see BattleService). Only the codes its public
+            // methods (StartBattle/PlayCard/EndTurn/ExecuteEnemyTurn) can plausibly
+            // return are registered here; ConsequenceAlreadyApplied belongs to the
+            // unrelated adventure/story-node flow and isn't guessed at.
+            mapper.Register(EngineErrorCodes.BattleNotFound, StatusCodes.Status404NotFound);
+            mapper.Register(EngineErrorCodes.BattleAlreadyFinished, StatusCodes.Status409Conflict);
+            mapper.Register(EngineErrorCodes.NotPlayerTurn, StatusCodes.Status409Conflict);
+            mapper.Register(EngineErrorCodes.InvalidAction, StatusCodes.Status400BadRequest);
+            mapper.Register(EngineErrorCodes.PlayerDead, StatusCodes.Status409Conflict);
+            mapper.Register(EngineErrorCodes.EnemyDead, StatusCodes.Status409Conflict);
+            mapper.Register(EngineErrorCodes.MissingCombatRule, StatusCodes.Status500InternalServerError);
+            mapper.Register(EngineErrorCodes.RewardsAlreadyGranted, StatusCodes.Status409Conflict);
+            return mapper;
+        });
 
         // --- Card effects (strategy pattern) ---
         // Every ICardEffect is registered so CardEffectRegistry can be built from
@@ -107,6 +139,7 @@ public static class DependencyInjection
         // --- Dice (foundation of everything random in battle) ---
         services.AddSingleton<IRandomNumberSource, CryptographicRandomNumberSource>();
         services.AddSingleton<IDiceEngine, DiceEngine>();
+        services.AddScoped<IDiceService, DiceService>();
 
         // --- Combat (damage, dodge, criticals) ---
         // IDamageRule/IDodgeRule/IInitiativeRule are optional policy seams — their
@@ -163,8 +196,21 @@ public static class DependencyInjection
         services.AddScoped<ITalentRepository, MockTalentRepository>();
         services.AddScoped<IGameSessionRepository, MockGameSessionRepository>();
         services.AddScoped<IStoryNodeRepository, MockStoryNodeRepository>();
+        services.AddScoped<ICardCollectionRepository, MockCardCollectionRepository>();
+        services.AddScoped<IDeckRepository, MockDeckRepository>();
+        services.AddScoped<IBattleRepository, MockBattleRepository>();
+        services.AddScoped<IBattleDeckRepository, MockBattleDeckRepository>();
 
         services.AddScoped<ICurrentPlayerService, MockCurrentPlayerService>();
+        services.AddScoped<ICardService, CardService>();
+        services.AddScoped<IDeckService, DeckService>();
+
+        // BattleService depends on Domain.Engine.Battle.IBattleEngine, a Person 1
+        // seam not registered anywhere in this composition root (see
+        // AddBattleTurnSystemServices' comment). Registering BattleService here is
+        // still correct — it simply won't resolve until that seam is filled, same
+        // as Persona2_EffectChain's IEffectEngine today (see DiRegistrationTests).
+        services.AddScoped<IBattleService, BattleService>();
         return services;
     }
 }
