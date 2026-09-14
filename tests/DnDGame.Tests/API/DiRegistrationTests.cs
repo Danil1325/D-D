@@ -10,6 +10,7 @@ using DnDGame.Domain.Engine.Dice;
 using DnDGame.Domain.Engine.EnemyActions;
 using DnDGame.Domain.Engine.Initiative;
 using DnDGame.Domain.Engine.SavingThrows;
+using DnDGame.Domain.Engine.Turn;
 using DnDGame.MockData;
 using DomainCombat = DnDGame.Domain.Engine.Combat;
 using Microsoft.Extensions.DependencyInjection;
@@ -131,21 +132,18 @@ public class DiRegistrationTests
     }
 
     /// <summary>
-    /// Registered but not yet resolvable: BattleService requires
-    /// Domain.Engine.Battle.IBattleEngine, which itself requires
-    /// Domain.Engine.{Cards,Deck,Hand,Effects} implementations and IEnemyDefenseRule —
-    /// none exist yet. Pinned so the expected failure flips to success automatically
-    /// once Persona 1 delivers those seams (see AddBattleTurnSystemServices).
+    /// The Persona 1 turn-boundary engines (Domain Deck/Hand/Card/Effect engines and
+    /// IEnemyDefenseRule) have landed, so TurnEngine, BattleEngine and — in turn —
+    /// BattleService now resolve from the composition root. This test used to be a
+    /// pin asserting a resolve failure; it now asserts the seam is closed.
     /// </summary>
     [Fact]
-    public void Persona1_Seam_BattleServiceNotResolvableUntilBattleEngineLands()
+    public void Persona1_Seam_BattleServiceResolvesNowThatBattleEngineLands()
     {
         using var provider = BuildAll();
 
-        var exception = Assert.Throws<InvalidOperationException>(
-            () => provider.GetRequiredService<IBattleService>());
-
-        Assert.Contains("IBattleEngine", exception.Message);
+        Assert.NotNull(provider.GetRequiredService<IBattleEngine>());
+        Assert.NotNull(provider.GetRequiredService<IBattleService>());
     }
 
     // --- Persona 1: battle/turn surface (implemented parts resolve) ---
@@ -162,6 +160,14 @@ public class DiRegistrationTests
     [InlineData(typeof(ISavingThrowEngine))]
     [InlineData(typeof(IEnemyActionSelector))]
     [InlineData(typeof(IBattleLogWriter))]
+    [InlineData(typeof(DnDGame.Domain.Engine.Deck.IDeckEngine))]
+    [InlineData(typeof(DnDGame.Domain.Engine.Hand.IHandEngine))]
+    [InlineData(typeof(DnDGame.Domain.Engine.Cards.ICardEngine))]
+    [InlineData(typeof(DnDGame.Domain.Engine.Effects.IEffectEngine))]
+    [InlineData(typeof(IEnemyDefenseRule))]
+    [InlineData(typeof(ITurnEngine))]
+    [InlineData(typeof(IBattleEngine))]
+    [InlineData(typeof(IBattleService))]
     public void Persona1_ImplementedComponents_AllResolve(Type serviceType)
     {
         using var provider = BuildAll();

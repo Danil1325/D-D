@@ -29,6 +29,7 @@ using DnDGame.Domain.Engine.Dice;
 using DnDGame.Domain.Engine.EnemyActions;
 using DnDGame.Domain.Engine.Initiative;
 using DnDGame.Domain.Engine.SavingThrows;
+using DnDGame.Domain.Engine.Turn;
 using DnDGame.MockData;
 using DnDGame.MockData.Repositories;
 using DnDGame.MockData.Services;
@@ -156,7 +157,21 @@ public static class DependencyInjection
         services.AddSingleton<IEnemyActionSelector, EnemyActionSelector>();
         services.AddSingleton<IBattleLogWriter, BattleLogWriter>();
 
-        // --- Person 1 seams (deliberately NOT registered/implemented here) ---
+        // --- Domain turn-boundary engines, ITurnEngine and IBattleEngine (Person 1) ---
+        // BattleEngine (DnDGame.Domain.Engine.Battle) and TurnEngine
+        // (DnDGame.Domain.Engine.Turn) only resolve once the engine set they delegate
+        // to — Deck/Hand/Card/Effect engines and IEnemyDefenseRule — is wired in.
+        // Their interfaces collide with the identically-named BusinessLayer ones in
+        // AddCardBattleServices, so they are written fully qualified here.
+        services.AddSingleton<DnDGame.Domain.Engine.Deck.IDeckEngine, DnDGame.Domain.Engine.Deck.DeckEngine>();
+        services.AddSingleton<DnDGame.Domain.Engine.Hand.IHandEngine, DnDGame.Domain.Engine.Hand.HandEngine>();
+        services.AddSingleton<DnDGame.Domain.Engine.Cards.ICardEngine, DnDGame.Domain.Engine.Cards.CardEngine>();
+        services.AddSingleton<DnDGame.Domain.Engine.Effects.IEffectEngine, DnDGame.Domain.Engine.Effects.EffectEngine>();
+        services.AddSingleton<IEnemyDefenseRule, EnemyDefenseRule>();
+        services.AddSingleton<ITurnEngine, TurnEngine>();
+        services.AddSingleton<IBattleEngine, BattleEngine>();
+
+        // --- Remaining Person 1 seams (deliberately NOT registered/implemented here) ---
         // BattleContext (DnDGame.Domain.Engine.Battle.BattleContext): the in-memory
         // hand-off between the two layers — Persoana 2's card flow produces
         // Battle/BattleDeck/CardInstance, Persoana 1's IBattleEngine consumes a
@@ -167,12 +182,6 @@ public static class DependencyInjection
         //   consumed by DamageEffect / the card-effect chain. No production
         //   implementation exists — Persoana 1 provides it; the moment it is
         //   registered, CardEffectRegistry/IEffectEngine/ICardEngine resolve.
-        //
-        // Domain turn-boundary engines: DnDGame.Domain.Engine.Deck.IDeckEngine,
-        //   Hand.IHandEngine, Cards.ICardEngine, Effects.IEffectEngine — used by
-        //   IBattleEngine/ITurnEngine (also Person 1 seams). No implementations exist
-        //   on this branch; once they land, BattleEngine and TurnEngine become
-        //   resolvable and can be registered here.
         return services;
     }
 
@@ -205,11 +214,8 @@ public static class DependencyInjection
         services.AddScoped<ICardService, CardService>();
         services.AddScoped<IDeckService, DeckService>();
 
-        // BattleService depends on Domain.Engine.Battle.IBattleEngine, a Person 1
-        // seam not registered anywhere in this composition root (see
-        // AddBattleTurnSystemServices' comment). Registering BattleService here is
-        // still correct — it simply won't resolve until that seam is filled, same
-        // as Persona2_EffectChain's IEffectEngine today (see DiRegistrationTests).
+        // BattleService depends on Domain.Engine.Battle.IBattleEngine; the engine
+        // set it needs is registered in AddBattleTurnSystemServices, so it resolves.
         services.AddScoped<IBattleService, BattleService>();
         return services;
     }

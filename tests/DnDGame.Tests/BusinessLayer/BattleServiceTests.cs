@@ -21,9 +21,8 @@ namespace DnDGame.Tests.BusinessLayer;
 /// <summary>
 /// Exercises BattleService's own orchestration/reconciliation logic directly,
 /// using a hand-written IBattleEngine test double (same technique as
-/// DiRegistrationTests.StubDamageCalculator) — IBattleEngine itself isn't
-/// resolvable via DI yet (see Persona1_Seam_BattleServiceNotResolvableUntilBattleEngineLands),
-/// so these tests can't go through the real engine.
+/// DiRegistrationTests.StubDamageCalculator) — the double keeps the service tests
+/// focused on BattleService instead of the battle engine itself.
 /// </summary>
 public class BattleServiceTests
 {
@@ -306,11 +305,9 @@ public class BattleServiceTests
     }
 
     /// <summary>
-    /// Deterministic stand-in for Domain.Engine.Battle.IBattleEngine, which isn't
-    /// resolvable via DI yet (see Persona1_Seam_BattleServiceNotResolvableUntilBattleEngineLands
-    /// in DiRegistrationTests). Defaults every operation to a success that returns
-    /// the BattleState unchanged; tests override the On* delegates to simulate
-    /// specific engine outcomes.
+    /// Deterministic stand-in for Domain.Engine.Battle.IBattleEngine. Defaults every
+    /// operation to a success that returns the BattleState unchanged; tests override
+    /// the On* delegates to simulate specific engine outcomes.
     /// </summary>
     private sealed class FakeBattleEngine : IBattleEngine
     {
