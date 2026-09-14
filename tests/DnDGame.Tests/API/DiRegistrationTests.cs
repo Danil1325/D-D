@@ -130,6 +130,24 @@ public class DiRegistrationTests
         Assert.Contains("IDamageCalculator", exception.Message);
     }
 
+    /// <summary>
+    /// Registered but not yet resolvable: BattleService requires
+    /// Domain.Engine.Battle.IBattleEngine, which itself requires
+    /// Domain.Engine.{Cards,Deck,Hand,Effects} implementations and IEnemyDefenseRule —
+    /// none exist yet. Pinned so the expected failure flips to success automatically
+    /// once Persona 1 delivers those seams (see AddBattleTurnSystemServices).
+    /// </summary>
+    [Fact]
+    public void Persona1_Seam_BattleServiceNotResolvableUntilBattleEngineLands()
+    {
+        using var provider = BuildAll();
+
+        var exception = Assert.Throws<InvalidOperationException>(
+            () => provider.GetRequiredService<IBattleService>());
+
+        Assert.Contains("IBattleEngine", exception.Message);
+    }
+
     // --- Persona 1: battle/turn surface (implemented parts resolve) ---
 
     [Theory]

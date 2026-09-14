@@ -190,6 +190,13 @@ public static class DependencyInjection
         services.AddScoped<ICurrentPlayerService, MockCurrentPlayerService>();
         services.AddScoped<ICardService, CardService>();
         services.AddScoped<IDeckService, DeckService>();
+
+        // BattleService depends on Domain.Engine.Battle.IBattleEngine, a Person 1
+        // seam not registered anywhere in this composition root (see
+        // AddBattleTurnSystemServices' comment). Registering BattleService here is
+        // still correct — it simply won't resolve until that seam is filled, same
+        // as Persona2_EffectChain's IEffectEngine today (see DiRegistrationTests).
+        services.AddScoped<IBattleService, BattleService>();
         return services;
     }
 }
