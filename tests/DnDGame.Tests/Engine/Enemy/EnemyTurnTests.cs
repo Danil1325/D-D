@@ -31,6 +31,19 @@ public class EnemyTurnTests
     }
 
     [Fact]
+    public void AttackAddsEnemyAttackBonusToDamage()
+    {
+        var turnEngine = new TurnEngineStub();
+        var battleEngine = CreateBattleEngine(new EnemyAction(EnemyActionType.Attack), 0, turnEngine);
+        var context = CreateEnemyTurnContext(playerHealth: 10, enemyDamage: 4, enemyAttackBonus: 3);
+
+        var result = battleEngine.ExecuteEnemyTurn(context);
+
+        Assert.True(result.Success);
+        Assert.Equal(3, context.BattleState.PlayerHealth);
+    }
+
+    [Fact]
     public void DefendAddsBlock()
     {
         var battleEngine = CreateBattleEngine(new EnemyAction(EnemyActionType.Defend), 5, new TurnEngineStub());
@@ -88,11 +101,15 @@ public class EnemyTurnTests
             new BattleLogWriter());
     }
 
-    private static BattleContext CreateEnemyTurnContext(int playerHealth, int enemyDamage, int enemyBlock = 0)
+    private static BattleContext CreateEnemyTurnContext(
+        int playerHealth,
+        int enemyDamage,
+        int enemyBlock = 0,
+        int enemyAttackBonus = 0)
     {
         return new BattleContext(
             new PlayerCharacter { CurrentHealth = playerHealth, MaxHealth = playerHealth },
-            new Enemy { DamageAmount = enemyDamage, Health = 10 },
+            new Enemy { DamageAmount = enemyDamage, Health = 10, AttackBonus = enemyAttackBonus },
             new BattleState
             {
                 PlayerHealth = playerHealth,

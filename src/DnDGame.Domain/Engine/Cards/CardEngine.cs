@@ -40,7 +40,7 @@ public sealed class CardEngine : ICardEngine
             return failure;
         }
 
-        var damageResult = ResolveDamage(battleState, card);
+        var damageResult = ResolveDamage(battleContext, card);
         if (damageResult is not null && !damageResult.Success)
         {
             return EngineResult<BattleState>.Fail(
@@ -107,18 +107,24 @@ public sealed class CardEngine : ICardEngine
         return null;
     }
 
-    private EngineResult<DamageResult>? ResolveDamage(BattleState battleState, CardInstance card)
+    private EngineResult<DamageResult>? ResolveDamage(BattleContext battleContext, CardInstance card)
     {
         if (card.Card.EffectType != EffectType.Damage)
         {
             return null;
         }
 
+        var battleState = battleContext.BattleState;
         var targetsPlayer = TargetsPlayer(card);
+
+        // The player is always the one playing the card, so Strength is always
+        // theirs. Defense only applies when the target is the enemy — the player
+        // has no Defense attribute (see PlayerCharacter), so a self/ally-targeted
+        // card (friendly fire, self-harm effects) applies none.
         return _damageCalculator.Calculate(new DamageRequest(
             baseDamage: card.GetEffectiveDamage(),
-            strength: 0,
-            defense: 0,
+            strength: battleContext.Player.Strength,
+            defense: targetsPlayer ? 0 : battleContext.Enemy.Defense,
             block: targetsPlayer ? battleState.PlayerBlock : battleState.EnemyBlock));
     }
 

@@ -691,11 +691,39 @@ pin was renamed and flipped to
 `Persona1_Seam_EffectEngineResolvesNowThatDamageCalculatorLands`, same convention as the other
 two. New unit coverage in `AdditiveDamageCalculatorTests`. A full `PlayCard` call through the
 real DI-registered `ICardEngine` was manually driven to confirm actual damage lands on the
-enemy, not just that the chain resolves. `DamageEffect` still passes hardcoded
-`playerStrength = 10`/`enemyDefense = 0` into the calculator rather than real character/enemy
-stats — that placeholder-input wiring is a separate, still-open item (not a missing engine
-seam; `DamageEffect` already compiles and runs, it just isn't fed real stats yet). Test count
-grew from 366 (above) to 371.
+enemy, not just that the chain resolves. Test count grew from 366 (above) to 371.
+
+**Important correction, found right after closing this seam**: `BusinessLayer.Effects.Strategies.DamageEffect`
+and the `ICardEngine`/`IEffectEngine`/`CardEffectRegistry` chain it belongs to are **not** on
+the path the live Battle API actually uses. `BattleService.PlayCardAsync` calls
+`Domain.Engine.Battle.IBattleEngine.PlayCard`, which uses the separate
+`Domain.Engine.Cards.CardEngine` — a different, non-interoperable card system (see §7's
+original two-battle-system table; this is exactly that split, still in effect). So the
+`AdditiveDamageCalculator` work above is real, tested, and correct, but it doesn't change what
+a client hitting `POST /api/battle/{id}/play-card` experiences — that request never reaches
+`DamageEffect`. Keep this in mind before assuming a BusinessLayer-side fix changes live
+behavior; check which `CardEngine`/`IEffectEngine` (there are two of each, Domain and
+BusinessLayer) is actually reachable from `BattleService` first.
+
+**Fixed separately, on the actually-live path**: `Domain.Engine.Cards.CardEngine.ResolveDamage`
+had the identical hardcoded-placeholder pattern (`strength: 0, defense: 0`) but real values
+were already sitting one call-frame away — `PlayCard`'s `BattleContext` carries
+`Player`/`Enemy`, `ResolveDamage` just wasn't passed it. Now threads
+`battleContext.Player.Strength` through always (the player is always the one playing the
+card) and `battleContext.Enemy.Defense` only when the card targets the enemy (a
+self/ally-targeted card, e.g. friendly fire, applies no defense — players have no Defense
+attribute to apply instead). Similarly, `BattleEngine.ExecuteEnemyAttack` (the enemy's attack,
+used by `ExecuteEnemyTurn`) never read `Enemy.AttackBonus` despite it being seeded on every
+enemy (`EnemySeedData`) and documented on the property as "added to this enemy's ... roll
+when it attacks" — now passed as the `strength` slot of that `DamageRequest`, since enemies
+have no Strength attribute. `CardEngineTests`' shared `Context()` helper had `Defense = 8`
+hardcoded on its `Enemy` for years with zero effect (nothing consumed it) — now that Defense
+is real, that value would have silently changed several existing tests' outcomes, so it
+became an `enemyDefense` parameter defaulting to 0, preserving every existing test's original
+intent, plus `playerStrength`. Added `PlayCardDamageAddsPlayerStrength`,
+`PlayCardDamageIsReducedByEnemyDefense`, `PlayCardSelfTargetedDamageIgnoresEnemyDefense`
+(`CardEngineTests`) and `AttackAddsEnemyAttackBonusToDamage` (`EnemyTurnTests`). Test count
+grew from 371 to 375.
 
 As of this update, all three Person 1 policy-rule seams found in this investigation
 (`IInitiativeRule`, `IEnemyActionRule`, `IDamageCalculator`) are closed.
