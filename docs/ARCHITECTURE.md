@@ -594,19 +594,42 @@ boundary (its codes are already strings, unlike Persona 2's enum-coded `EngineRe
 `ConsequenceAlreadyApplied` (also in `EngineErrorCodes`) was deliberately left unregistered —
 it belongs to the unrelated adventure/story-node flow, not anything this feature produces.
 
-**Still a Person 1 seam, deliberately**: `Domain.Engine.Battle.IBattleEngine` itself is *not*
-registered in `AddBattleTurnSystemServices()` — its constructor requires
+**Was a Person 1 seam, now closed**: at the time this section was written,
+`Domain.Engine.Battle.IBattleEngine` was *not* registered in
+`AddBattleTurnSystemServices()` because its constructor requires
 `Domain.Engine.{Cards,Deck,Hand,Effects}` implementations and `IEnemyDefenseRule`, none of
-which exist on this branch (see §10). `BattleService`/`BattleController` are real, complete
-code, not stubs — they simply won't resolve/function until Persona 1 delivers those seams.
-Pinned via `DiRegistrationTests.Persona1_Seam_BattleServiceNotResolvableUntilBattleEngineLands`,
-same convention as the existing `IEffectEngine` seam test — expected to flip green
-automatically once the seam is filled.
+which existed on this branch yet (see §10). `BattleService`/`BattleController` were real,
+complete code, not stubs — they simply didn't resolve/function until Persona 1 delivered
+those seams. Persona 1 landed all five (`DeckEngine`, `HandEngine`, `CardEngine`,
+`EffectEngine`, `EnemyDefenseRule`) on `catalina` (commit `1e2724d`, "Implement battle API",
+merged via PR #10), so `IBattleEngine`/`ITurnEngine`/`IBattleService` now resolve from the
+composition root. The pinning test was renamed and flipped accordingly:
+`DiRegistrationTests.Persona1_Seam_BattleServiceResolvesNowThatBattleEngineLands`, same
+convention as the still-open `IEffectEngine` seam test (see below).
 
 **Tests**: `BattleServiceTests` (service-layer orchestration, using a hand-written
 `IBattleEngine` test double — same technique as `DiRegistrationTests.StubDamageCalculator`,
-since the real engine isn't resolvable), plus `MockBattleRepositoryTests`/
-`MockBattleDeckRepositoryTests` and additional `DiRegistrationTests`/`ErrorCodeHttpMapperTests`
-cases. No controller-level tests were added — there's no precedent for that in this codebase
-(`DiceController`/`DeckController` have none either); coverage lives entirely at the service
-layer the controller thinly wraps. Test count grew from 262 (§14) to 297.
+kept even after the real engine became resolvable so the test doesn't depend on Persona 1's
+internals), plus `MockBattleRepositoryTests`/`MockBattleDeckRepositoryTests` and additional
+`DiRegistrationTests`/`ErrorCodeHttpMapperTests` cases. No controller-level tests were added —
+there's no precedent for that in this codebase (`DiceController`/`DeckController` have none
+either); coverage lives entirely at the service layer the controller thinly wraps. Test count
+grew from 262 (§14) to 297 at the time this section was written.
+
+## 17. Update: Person 1 battle-engine seam closed
+
+As of `main` commit `62422f2` (merge of PR #10, `catalina` → `main`), the seam described
+above and in §10 is closed: `Domain.Engine.{Deck,Hand,Cards,Effects}` and `IEnemyDefenseRule`
+are implemented and registered in `AddBattleTurnSystemServices()`, so `IBattleEngine`,
+`ITurnEngine`, and (in turn) `IBattleService`/`BattleController` all resolve end-to-end. This
+supersedes the "not yet resolvable" framing in §10 point 2–3 and §16 above — no further
+Person 3 action was needed, the existing `BattleService`/`BattleController` code just started
+working. Full solution test count is now 359/359 passing (`dotnet build`: 0 warnings/0 errors).
+
+**Still open, and distinct from the seam above** — do not conflate the two: the
+*BusinessLayer* `Effects.Interfaces.IDamageCalculator` (consumed by `DamageEffect`, part of
+Persona 2's card-effect chain) remains unregistered. `CardEffectRegistry`/`IEffectEngine`/
+`ICardEngine` **on the BusinessLayer side** still won't resolve until Persona 1 supplies it;
+`DamageEffect` still uses placeholder stats (`strength = 10`, `defense = 0`). Pinned by
+`DiRegistrationTests.Persona1_Seam_EffectEngineNotResolvableUntilDamageCalculatorLands`,
+unchanged.
