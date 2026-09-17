@@ -633,3 +633,46 @@ Persona 2's card-effect chain) remains unregistered. `CardEffectRegistry`/`IEffe
 `DamageEffect` still uses placeholder stats (`strength = 10`, `defense = 0`). Pinned by
 `DiRegistrationTests.Persona1_Seam_EffectEngineNotResolvableUntilDamageCalculatorLands`,
 unchanged.
+
+## 18. Update: IInitiativeRule seam closed; IEnemyActionRule still open
+
+Resolving `IBattleEngine` (§17) was not the same as it working: `StartBattle` calls
+`IInitiativeEngine.DetermineFirstTurn`, which unconditionally needs an `IInitiativeRule`.
+Until now, no production implementation existed anywhere in the codebase — only a test
+double in `InitiativeEngineTests` — so every real `StartBattle` call failed with
+`MissingCombatRule` (HTTP 500) even though the container built successfully. This was
+pinned by `DiRegistrationTests.Persona1_Seam_StartBattleFailsUntilInitiativeRuleLands`.
+
+**Closed**: `Domain.Engine.Initiative.AdditiveInitiativeRule` — same MVP/additive style as
+`Combat.AdditiveDamageRule` — rolls a d20 for each side and adds a flat modifier (player's
+`Dexterity`; enemy's `Defense`, the closest existing stat since enemies have no Dexterity
+attribute). Registered in `AddBattleTurnSystemServices()`. The pinning test was renamed and
+flipped to `Persona1_Seam_StartBattleSucceedsNowThatInitiativeRuleLands`, same convention as
+the `IBattleEngine`/`IEnemyDefenseRule` seam in §17. New unit coverage in
+`AdditiveInitiativeRuleTests`. Test count grew from 359 (§17) to 362.
+
+**Update — also closed**: `IEnemyActionRule` (§10 point 5) had the same shape of problem
+one step further into the flow: with initiative resolvable, `EndTurnAsync`'s auto-chain into
+`ExecuteEnemyTurn` (see §16) threw `"No enemy action rule has been configured."` for any
+turn that passed to the enemy. `Domain.Engine.EnemyActions.WeightedEnemyActionRule` closes
+it — an MVP AI policy that rolls a weighted coin via the same injectable
+`IRandomNumberSource` the dice engine uses (`AttackChancePercent = 75`, i.e. attacks 75% of
+the time and defends the rest; this ratio was a deliberate game-design choice, not inferred
+from existing code, since no prior convention existed for it). Registered in
+`AddBattleTurnSystemServices()`. New unit coverage in `WeightedEnemyActionRuleTests`
+(`DnDGame.Tests.Engine.EnemyActions` namespace — note the test-namespace convention under
+`tests/DnDGame.Tests/Engine/Enemy/` is `...Engine.EnemyActions`, matching the production
+namespace, not the physical folder name `Enemy`; using `...Engine.Enemy` instead creates a
+sibling namespace that shadows the `Enemy` *type* for every file under `...Engine.*` that
+references it unqualified — a real, project-wide-breaking C# gotcha hit and fixed while
+adding this rule). A full `StartBattle → PlayCard → EndTurn → ExecuteEnemyTurn` flow was
+manually driven end-to-end through the real DI-registered `IBattleEngine` via `BattleService`
+to confirm this; no permanent integration test for the full chain was added since a
+`DiRegistrationTests`-style resolve/call test doesn't carry the setup a fully started battle
+needs, and per-rule unit coverage already pins each piece. Test count grew from 362 (above)
+to 366.
+
+Do not conflate this with the `IInitiativeRule` seam above or the `IDamageCalculator` seam
+before it — three separate Person 1 policy rules that blocked three different points in the
+flow. As of this update, the only one still open is *BusinessLayer*
+`Effects.Interfaces.IDamageCalculator` (§17).

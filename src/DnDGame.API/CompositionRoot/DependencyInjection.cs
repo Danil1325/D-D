@@ -143,17 +143,20 @@ public static class DependencyInjection
         services.AddScoped<IDiceService, DiceService>();
 
         // --- Combat (damage, dodge, criticals) ---
-        // IDamageRule/IDodgeRule/IInitiativeRule are optional policy seams — their
-        // default implementations are wired only if they exist. The concrete rules
-        // below are the ones already implemented on this branch.
+        // IDamageRule/IDodgeRule are optional policy seams — their default
+        // implementations are wired only if they exist. The concrete rules below
+        // are the ones already implemented on this branch. (IInitiativeRule used
+        // to be in this category too; AdditiveInitiativeRule below closes it.)
         services.AddSingleton<IDamageRule, AdditiveDamageRule>();
         services.AddSingleton<DomainDamageCalculator, DamageCalculator>();
         services.AddSingleton<IDodgeCalculator, DodgeCalculator>();
         services.AddSingleton<ICriticalCalculator, CriticalCalculator>();
 
         // --- Turn / battle orchestration building blocks ---
+        services.AddSingleton<IInitiativeRule, AdditiveInitiativeRule>();
         services.AddSingleton<IInitiativeEngine, InitiativeEngine>();
         services.AddSingleton<ISavingThrowEngine, SavingThrowEngine>();
+        services.AddSingleton<IEnemyActionRule, WeightedEnemyActionRule>();
         services.AddSingleton<IEnemyActionSelector, EnemyActionSelector>();
         services.AddSingleton<IBattleLogWriter, BattleLogWriter>();
 
