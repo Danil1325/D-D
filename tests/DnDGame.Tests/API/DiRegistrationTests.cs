@@ -6,6 +6,7 @@ using DnDGame.BusinessLayer.Engines.Interfaces;
 using DnDGame.BusinessLayer.Repositories.Interfaces;
 using DnDGame.BusinessLayer.Services.Interfaces;
 using DnDGame.Domain.Engine.Battle;
+using DnDGame.Domain.Engine.Common;
 using DnDGame.Domain.Engine.Dice;
 using DnDGame.Domain.Engine.EnemyActions;
 using DnDGame.Domain.Engine.Initiative;
@@ -144,6 +145,50 @@ public class DiRegistrationTests
 
         Assert.NotNull(provider.GetRequiredService<IBattleEngine>());
         Assert.NotNull(provider.GetRequiredService<IBattleService>());
+    }
+
+    /// <summary>
+    /// Resolving IBattleEngine is not the same as it working: StartBattle delegates
+    /// to IInitiativeEngine.DetermineFirstTurn, which unconditionally requires an
+    /// IInitiativeRule. No production implementation of IInitiativeRule exists
+    /// anywhere in the codebase (only a test double in InitiativeEngineTests) and
+    /// none is registered in AddBattleTurnSystemServices, so every real StartBattle
+    /// call fails with MissingCombatRule (mapped to HTTP 500) even though the
+    /// composition root builds the engine successfully. Pinned so this flips to
+    /// success automatically once Persona 1 supplies and registers a real rule —
+    /// at which point this test should be replaced with one asserting success,
+    /// the same way Persona1_Seam_BattleServiceResolvesNowThatBattleEngineLands
+    /// replaced its "not yet resolvable" predecessor.
+    /// </summary>
+    [Fact]
+    public void Persona1_Seam_StartBattleFailsUntilInitiativeRuleLands()
+    {
+        using var provider = BuildAll();
+        var battleEngine = provider.GetRequiredService<IBattleEngine>();
+
+        var player = new DnDGame.Domain.Entities.Characters.PlayerCharacter
+        {
+            Id = 1,
+            Name = "Hero",
+            MaxHealth = 30,
+            CurrentHealth = 30
+        };
+        var enemy = new DnDGame.Domain.Entities.Enemies.Enemy { Id = 1, Name = "Goblin", Health = 15 };
+        var state = new BattleState
+        {
+            PlayerEnergy = 5,
+            PlayerMaxEnergy = 5,
+            Hand = new List<DnDGame.Domain.Entities.Cards.CardInstance>(),
+            DrawPile = new List<DnDGame.Domain.Entities.Cards.CardInstance>(),
+            DiscardPile = new List<DnDGame.Domain.Entities.Cards.CardInstance>(),
+            ActiveEffects = new List<DnDGame.Domain.Engine.Models.ActiveEffect>(),
+            BattleLog = new List<DnDGame.Domain.Engine.Models.BattleLogEntry>()
+        };
+
+        var result = battleEngine.StartBattle(new BattleContext(player, enemy, state));
+
+        Assert.False(result.Success);
+        Assert.Equal(EngineErrorCodes.MissingCombatRule, result.ErrorCode);
     }
 
     // --- Persona 1: battle/turn surface (implemented parts resolve) ---
