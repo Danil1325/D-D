@@ -14,17 +14,18 @@ no longer in the repo.)
 - [x] Phase 0 — Solution & project scaffolding
 - [x] Phase 1 — Domain models and enums
 - [x] Phase 2 — Mock data
-- [ ] Phase 3 — Business/game logic
-  - Done: card-battle engines (deck/hand/play/card/effect/ability-use), combat
-    calculators (damage/dodge/critical), dice, initiative (`AdditiveInitiativeRule`),
+- [x] Phase 3 — Business/game logic
+  - Card-battle engines (deck/hand/play/card/effect/ability-use), combat
+    calculators (damage/dodge/critical, including the BusinessLayer
+    `AdditiveDamageCalculator`), dice, initiative (`AdditiveInitiativeRule`),
     enemy AI (`WeightedEnemyActionRule`), turn/battle orchestration, and deck
     validation are all implemented and wired into DI. A full battle
-    (start → play a card → end turn → resolve the enemy's turn) now completes
-    end-to-end through the real engine.
-  - Remaining: the BusinessLayer `IDamageCalculator` used by `DamageEffect` is
-    still unregistered (a separate, still-open Person 1 gap — see
-    `docs/ARCHITECTURE.md` §17/§18 and the `Persona1_Seam_*` tests in
-    `DiRegistrationTests`).
+    (start → play a card → end turn → resolve the enemy's turn) completes
+    end-to-end through the real engine, and card damage lands on the enemy
+    through the real chain (no test doubles). See `docs/ARCHITECTURE.md` §17/§18.
+  - Still a known gap, but not a missing seam: `DamageEffect` feeds the
+    calculator hardcoded `playerStrength = 10`/`enemyDefense = 0` instead of
+    real character/enemy stats.
 - [ ] Phase 4 — API / controllers
   - Done: Dice, Card, Deck, and Battle controllers, each with DTOs, request
     validation, and error-code-to-HTTP mapping through the shared middleware.
@@ -56,7 +57,7 @@ DnDGame.sln
 │   └── DnDGame.API/             ASP.NET Core Web API — controllers, DI composition
 │                                 root, middleware, Program.cs, Swagger.
 └── tests/
-    └── DnDGame.Tests/           xUnit test suite (366 tests as of this writing).
+    └── DnDGame.Tests/           xUnit test suite (371 tests as of this writing).
 ```
 
 `DnDGame.Domain` currently contains 26 entity classes and 23 enums. `DnDGame.MockData`
@@ -100,4 +101,4 @@ This opens Swagger at `/swagger` with the endpoints listed above.
 dotnet test
 ```
 
-Runs the full xUnit suite (366 tests, 0 failures as of this writing).
+Runs the full xUnit suite (371 tests, 0 failures as of this writing).

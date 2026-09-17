@@ -674,5 +674,28 @@ to 366.
 
 Do not conflate this with the `IInitiativeRule` seam above or the `IDamageCalculator` seam
 before it — three separate Person 1 policy rules that blocked three different points in the
-flow. As of this update, the only one still open is *BusinessLayer*
-`Effects.Interfaces.IDamageCalculator` (§17).
+flow.
+
+**Update — the third seam is also closed.** `BusinessLayer.Effects.Interfaces.IDamageCalculator`
+(§17) — the last remaining one — is now implemented by
+`BusinessLayer.Effects.AdditiveDamageCalculator`: the same additive formula as the Domain-side
+`Combat.DamageCalculator` + `AdditiveDamageRule` combo, adapted to this interface's flat-int
+signature (`base + strength`, minus defense floored at 0, then block absorbs the remainder,
+floored at 0). Registered in `AddCardBattleServices()` (fully qualified as
+`DnDGame.BusinessLayer.Effects.Interfaces.IDamageCalculator` at the registration site, since
+the file also has the Domain `IDamageCalculator` in scope via `DomainDamageCalculator` — bare
+`IDamageCalculator` is ambiguous the moment both are used unqualified in the same file).
+`CardEffectRegistry`/`IEffectEngine`/`ICardEngine` **on the BusinessLayer side** now resolve
+for real, closing the last of the three Person 1 policy-rule gaps. The `DiRegistrationTests`
+pin was renamed and flipped to
+`Persona1_Seam_EffectEngineResolvesNowThatDamageCalculatorLands`, same convention as the other
+two. New unit coverage in `AdditiveDamageCalculatorTests`. A full `PlayCard` call through the
+real DI-registered `ICardEngine` was manually driven to confirm actual damage lands on the
+enemy, not just that the chain resolves. `DamageEffect` still passes hardcoded
+`playerStrength = 10`/`enemyDefense = 0` into the calculator rather than real character/enemy
+stats — that placeholder-input wiring is a separate, still-open item (not a missing engine
+seam; `DamageEffect` already compiles and runs, it just isn't fed real stats yet). Test count
+grew from 366 (above) to 371.
+
+As of this update, all three Person 1 policy-rule seams found in this investigation
+(`IInitiativeRule`, `IEnemyActionRule`, `IDamageCalculator`) are closed.

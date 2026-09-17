@@ -115,20 +115,23 @@ public class DiRegistrationTests
     }
 
     /// <summary>
-    /// Registered but not yet resolvable: building the effect chain requires the
-    /// Persona 1 seam — BusinessLayer IDamageCalculator, consumed by DamageEffect —
-    /// which has no production implementation yet. Pinned so the expected failure
-    /// flips to success automatically once Persona 1 registers that seam.
+    /// Used to be registered-but-not-resolvable: building the effect chain required
+    /// the Persona 1 seam — BusinessLayer IDamageCalculator, consumed by DamageEffect —
+    /// which had no production implementation. AdditiveDamageCalculator now closes it
+    /// (registered in AddCardBattleServices), so IEffectEngine resolves for real. This
+    /// test used to be a pin asserting a resolve failure; it now asserts the seam is
+    /// closed, same convention as the IInitiativeRule/IEnemyActionRule seam flips.
     /// </summary>
     [Fact]
-    public void Persona1_Seam_EffectEngineNotResolvableUntilDamageCalculatorLands()
+    public void Persona1_Seam_EffectEngineResolvesNowThatDamageCalculatorLands()
     {
         using var provider = BuildAll();
 
-        var exception = Assert.Throws<InvalidOperationException>(
-            () => provider.GetRequiredService<IEffectEngine>());
+        var effectEngine = provider.GetRequiredService<IEffectEngine>();
+        Assert.NotNull(effectEngine);
 
-        Assert.Contains("IDamageCalculator", exception.Message);
+        var cardEngine = provider.GetRequiredService<ICardEngine>();
+        Assert.NotNull(cardEngine);
     }
 
     /// <summary>
