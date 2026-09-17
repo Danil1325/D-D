@@ -111,6 +111,12 @@ public static class DependencyInjection
             return mapper;
         });
 
+        // BusinessLayer IDamageCalculator (raw-int signature, consumed by DamageEffect
+        // below) — distinct from the aliased Domain one registered in
+        // AddBattleTurnSystemServices. Closing this seam is what lets CardEffectRegistry/
+        // IEffectEngine/ICardEngine resolve (see DiRegistrationTests).
+        services.AddScoped<DnDGame.BusinessLayer.Effects.Interfaces.IDamageCalculator, AdditiveDamageCalculator>();
+
         // --- Card effects (strategy pattern) ---
         // Every ICardEffect is registered so CardEffectRegistry can be built from
         // the container instead of a hand-maintained list (Open/Closed Principle).
@@ -143,17 +149,20 @@ public static class DependencyInjection
         services.AddScoped<IDiceService, DiceService>();
 
         // --- Combat (damage, dodge, criticals) ---
-        // IDamageRule/IDodgeRule/IInitiativeRule are optional policy seams — their
-        // default implementations are wired only if they exist. The concrete rules
-        // below are the ones already implemented on this branch.
+        // IDamageRule/IDodgeRule are optional policy seams — their default
+        // implementations are wired only if they exist. The concrete rules below
+        // are the ones already implemented on this branch. (IInitiativeRule used
+        // to be in this category too; AdditiveInitiativeRule below closes it.)
         services.AddSingleton<IDamageRule, AdditiveDamageRule>();
         services.AddSingleton<DomainDamageCalculator, DamageCalculator>();
         services.AddSingleton<IDodgeCalculator, DodgeCalculator>();
         services.AddSingleton<ICriticalCalculator, CriticalCalculator>();
 
         // --- Turn / battle orchestration building blocks ---
+        services.AddSingleton<IInitiativeRule, AdditiveInitiativeRule>();
         services.AddSingleton<IInitiativeEngine, InitiativeEngine>();
         services.AddSingleton<ISavingThrowEngine, SavingThrowEngine>();
+        services.AddSingleton<IEnemyActionRule, WeightedEnemyActionRule>();
         services.AddSingleton<IEnemyActionSelector, EnemyActionSelector>();
         services.AddSingleton<IBattleLogWriter, BattleLogWriter>();
 
@@ -171,17 +180,16 @@ public static class DependencyInjection
         services.AddSingleton<ITurnEngine, TurnEngine>();
         services.AddSingleton<IBattleEngine, BattleEngine>();
 
-        // --- Remaining Person 1 seams (deliberately NOT registered/implemented here) ---
+        // --- Remaining Person 1 seam (deliberately NOT registered/implemented here) ---
         // BattleContext (DnDGame.Domain.Engine.Battle.BattleContext): the in-memory
         // hand-off between the two layers — Persoana 2's card flow produces
         // Battle/BattleDeck/CardInstance, Persoana 1's IBattleEngine consumes a
         // BattleContext wrapping PlayerCharacter/Enemy/BattleState. It is a per-battle
         // data holder, created on demand, so it is NOT a DI service.
         //
-        // BusinessLayer IDamageCalculator (DnDGame.BusinessLayer.Effects.Interfaces):
-        //   consumed by DamageEffect / the card-effect chain. No production
-        //   implementation exists — Persoana 1 provides it; the moment it is
-        //   registered, CardEffectRegistry/IEffectEngine/ICardEngine resolve.
+        // (BusinessLayer IDamageCalculator used to be listed here too. It's now
+        // registered — see AddCardBattleServices — so CardEffectRegistry/IEffectEngine/
+        // ICardEngine resolve.)
         return services;
     }
 

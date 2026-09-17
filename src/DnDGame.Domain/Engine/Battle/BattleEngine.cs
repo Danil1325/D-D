@@ -269,10 +269,14 @@ public sealed class BattleEngine : IBattleEngine
     private EngineResult<BattleState> ExecuteEnemyAttack(BattleContext battleContext)
     {
         var battleState = battleContext.BattleState;
+        // AttackBonus fills the "strength" slot here — enemies have no Strength
+        // attribute (see Enemy.AttackBonus: "Added to this enemy's ... roll when
+        // it attacks"). The player has no Defense attribute either, so defense
+        // stays 0; PlayerBlock is the only mitigation on this side.
         var damageCalculation = _damageCalculator.Calculate(
             new DamageRequest(
                 baseDamage: battleContext.Enemy.DamageAmount,
-                strength: 0,
+                strength: battleContext.Enemy.AttackBonus,
                 defense: 0,
                 block: battleState.PlayerBlock));
         if (!damageCalculation.Success || damageCalculation.Data is null)

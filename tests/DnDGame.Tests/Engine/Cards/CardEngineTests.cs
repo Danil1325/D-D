@@ -54,6 +54,39 @@ public class CardEngineTests
     }
 
     [Fact]
+    public void PlayCardDamageAddsPlayerStrength()
+    {
+        var card = DamageCard(damage: 5, cost: 1);
+        var context = Context(card, playerEnergy: 3, enemyHealth: 20, playerStrength: 4);
+
+        _cardEngine.PlayCard(context, card);
+
+        Assert.Equal(11, context.BattleState.EnemyHealth);
+    }
+
+    [Fact]
+    public void PlayCardDamageIsReducedByEnemyDefense()
+    {
+        var card = DamageCard(damage: 5, cost: 1);
+        var context = Context(card, playerEnergy: 3, enemyHealth: 20, enemyDefense: 3);
+
+        _cardEngine.PlayCard(context, card);
+
+        Assert.Equal(18, context.BattleState.EnemyHealth);
+    }
+
+    [Fact]
+    public void PlayCardSelfTargetedDamageIgnoresEnemyDefense()
+    {
+        var card = EffectCard(DomainEnums.EffectType.Damage, value: 5, targetType: DomainEnums.TargetType.Self);
+        var context = Context(card, playerEnergy: 3, playerHealth: 20, enemyDefense: 100);
+
+        _cardEngine.PlayCard(context, card);
+
+        Assert.Equal(15, context.BattleState.PlayerHealth);
+    }
+
+    [Fact]
     public void PlayCardFailsWhenTheCardIsNotInHand()
     {
         var card = DamageCard(damage: 5, cost: 1);
@@ -308,11 +341,13 @@ public class CardEngineTests
         int playerEnergy,
         int playerHealth = 10,
         int playerMaxHealth = 10,
-        int enemyHealth = 10)
+        int enemyHealth = 10,
+        int playerStrength = 0,
+        int enemyDefense = 0)
     {
         return new BattleContext(
-            new PlayerCharacter { CurrentHealth = playerHealth, MaxHealth = playerMaxHealth },
-            new Enemy { Health = enemyHealth, Defense = 8, DamageAmount = 3 },
+            new PlayerCharacter { CurrentHealth = playerHealth, MaxHealth = playerMaxHealth, Strength = playerStrength },
+            new Enemy { Health = enemyHealth, Defense = enemyDefense, DamageAmount = 3 },
             new BattleState
             {
                 PlayerHealth = playerHealth,

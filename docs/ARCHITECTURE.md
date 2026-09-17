@@ -594,19 +594,136 @@ boundary (its codes are already strings, unlike Persona 2's enum-coded `EngineRe
 `ConsequenceAlreadyApplied` (also in `EngineErrorCodes`) was deliberately left unregistered —
 it belongs to the unrelated adventure/story-node flow, not anything this feature produces.
 
-**Still a Person 1 seam, deliberately**: `Domain.Engine.Battle.IBattleEngine` itself is *not*
-registered in `AddBattleTurnSystemServices()` — its constructor requires
+**Was a Person 1 seam, now closed**: at the time this section was written,
+`Domain.Engine.Battle.IBattleEngine` was *not* registered in
+`AddBattleTurnSystemServices()` because its constructor requires
 `Domain.Engine.{Cards,Deck,Hand,Effects}` implementations and `IEnemyDefenseRule`, none of
-which exist on this branch (see §10). `BattleService`/`BattleController` are real, complete
-code, not stubs — they simply won't resolve/function until Persona 1 delivers those seams.
-Pinned via `DiRegistrationTests.Persona1_Seam_BattleServiceNotResolvableUntilBattleEngineLands`,
-same convention as the existing `IEffectEngine` seam test — expected to flip green
-automatically once the seam is filled.
+which existed on this branch yet (see §10). `BattleService`/`BattleController` were real,
+complete code, not stubs — they simply didn't resolve/function until Persona 1 delivered
+those seams. Persona 1 landed all five (`DeckEngine`, `HandEngine`, `CardEngine`,
+`EffectEngine`, `EnemyDefenseRule`) on `catalina` (commit `1e2724d`, "Implement battle API",
+merged via PR #10), so `IBattleEngine`/`ITurnEngine`/`IBattleService` now resolve from the
+composition root. The pinning test was renamed and flipped accordingly:
+`DiRegistrationTests.Persona1_Seam_BattleServiceResolvesNowThatBattleEngineLands`, same
+convention as the still-open `IEffectEngine` seam test (see below).
 
 **Tests**: `BattleServiceTests` (service-layer orchestration, using a hand-written
 `IBattleEngine` test double — same technique as `DiRegistrationTests.StubDamageCalculator`,
-since the real engine isn't resolvable), plus `MockBattleRepositoryTests`/
-`MockBattleDeckRepositoryTests` and additional `DiRegistrationTests`/`ErrorCodeHttpMapperTests`
-cases. No controller-level tests were added — there's no precedent for that in this codebase
-(`DiceController`/`DeckController` have none either); coverage lives entirely at the service
-layer the controller thinly wraps. Test count grew from 262 (§14) to 297.
+kept even after the real engine became resolvable so the test doesn't depend on Persona 1's
+internals), plus `MockBattleRepositoryTests`/`MockBattleDeckRepositoryTests` and additional
+`DiRegistrationTests`/`ErrorCodeHttpMapperTests` cases. No controller-level tests were added —
+there's no precedent for that in this codebase (`DiceController`/`DeckController` have none
+either); coverage lives entirely at the service layer the controller thinly wraps. Test count
+grew from 262 (§14) to 297 at the time this section was written.
+
+## 17. Update: Person 1 battle-engine seam closed
+
+As of `main` commit `62422f2` (merge of PR #10, `catalina` → `main`), the seam described
+above and in §10 is closed: `Domain.Engine.{Deck,Hand,Cards,Effects}` and `IEnemyDefenseRule`
+are implemented and registered in `AddBattleTurnSystemServices()`, so `IBattleEngine`,
+`ITurnEngine`, and (in turn) `IBattleService`/`BattleController` all resolve end-to-end. This
+supersedes the "not yet resolvable" framing in §10 point 2–3 and §16 above — no further
+Person 3 action was needed, the existing `BattleService`/`BattleController` code just started
+working. Full solution test count is now 359/359 passing (`dotnet build`: 0 warnings/0 errors).
+
+**Still open, and distinct from the seam above** — do not conflate the two: the
+*BusinessLayer* `Effects.Interfaces.IDamageCalculator` (consumed by `DamageEffect`, part of
+Persona 2's card-effect chain) remains unregistered. `CardEffectRegistry`/`IEffectEngine`/
+`ICardEngine` **on the BusinessLayer side** still won't resolve until Persona 1 supplies it;
+`DamageEffect` still uses placeholder stats (`strength = 10`, `defense = 0`). Pinned by
+`DiRegistrationTests.Persona1_Seam_EffectEngineNotResolvableUntilDamageCalculatorLands`,
+unchanged.
+
+## 18. Update: IInitiativeRule seam closed; IEnemyActionRule still open
+
+Resolving `IBattleEngine` (§17) was not the same as it working: `StartBattle` calls
+`IInitiativeEngine.DetermineFirstTurn`, which unconditionally needs an `IInitiativeRule`.
+Until now, no production implementation existed anywhere in the codebase — only a test
+double in `InitiativeEngineTests` — so every real `StartBattle` call failed with
+`MissingCombatRule` (HTTP 500) even though the container built successfully. This was
+pinned by `DiRegistrationTests.Persona1_Seam_StartBattleFailsUntilInitiativeRuleLands`.
+
+**Closed**: `Domain.Engine.Initiative.AdditiveInitiativeRule` — same MVP/additive style as
+`Combat.AdditiveDamageRule` — rolls a d20 for each side and adds a flat modifier (player's
+`Dexterity`; enemy's `Defense`, the closest existing stat since enemies have no Dexterity
+attribute). Registered in `AddBattleTurnSystemServices()`. The pinning test was renamed and
+flipped to `Persona1_Seam_StartBattleSucceedsNowThatInitiativeRuleLands`, same convention as
+the `IBattleEngine`/`IEnemyDefenseRule` seam in §17. New unit coverage in
+`AdditiveInitiativeRuleTests`. Test count grew from 359 (§17) to 362.
+
+**Update — also closed**: `IEnemyActionRule` (§10 point 5) had the same shape of problem
+one step further into the flow: with initiative resolvable, `EndTurnAsync`'s auto-chain into
+`ExecuteEnemyTurn` (see §16) threw `"No enemy action rule has been configured."` for any
+turn that passed to the enemy. `Domain.Engine.EnemyActions.WeightedEnemyActionRule` closes
+it — an MVP AI policy that rolls a weighted coin via the same injectable
+`IRandomNumberSource` the dice engine uses (`AttackChancePercent = 75`, i.e. attacks 75% of
+the time and defends the rest; this ratio was a deliberate game-design choice, not inferred
+from existing code, since no prior convention existed for it). Registered in
+`AddBattleTurnSystemServices()`. New unit coverage in `WeightedEnemyActionRuleTests`
+(`DnDGame.Tests.Engine.EnemyActions` namespace — note the test-namespace convention under
+`tests/DnDGame.Tests/Engine/Enemy/` is `...Engine.EnemyActions`, matching the production
+namespace, not the physical folder name `Enemy`; using `...Engine.Enemy` instead creates a
+sibling namespace that shadows the `Enemy` *type* for every file under `...Engine.*` that
+references it unqualified — a real, project-wide-breaking C# gotcha hit and fixed while
+adding this rule). A full `StartBattle → PlayCard → EndTurn → ExecuteEnemyTurn` flow was
+manually driven end-to-end through the real DI-registered `IBattleEngine` via `BattleService`
+to confirm this; no permanent integration test for the full chain was added since a
+`DiRegistrationTests`-style resolve/call test doesn't carry the setup a fully started battle
+needs, and per-rule unit coverage already pins each piece. Test count grew from 362 (above)
+to 366.
+
+Do not conflate this with the `IInitiativeRule` seam above or the `IDamageCalculator` seam
+before it — three separate Person 1 policy rules that blocked three different points in the
+flow.
+
+**Update — the third seam is also closed.** `BusinessLayer.Effects.Interfaces.IDamageCalculator`
+(§17) — the last remaining one — is now implemented by
+`BusinessLayer.Effects.AdditiveDamageCalculator`: the same additive formula as the Domain-side
+`Combat.DamageCalculator` + `AdditiveDamageRule` combo, adapted to this interface's flat-int
+signature (`base + strength`, minus defense floored at 0, then block absorbs the remainder,
+floored at 0). Registered in `AddCardBattleServices()` (fully qualified as
+`DnDGame.BusinessLayer.Effects.Interfaces.IDamageCalculator` at the registration site, since
+the file also has the Domain `IDamageCalculator` in scope via `DomainDamageCalculator` — bare
+`IDamageCalculator` is ambiguous the moment both are used unqualified in the same file).
+`CardEffectRegistry`/`IEffectEngine`/`ICardEngine` **on the BusinessLayer side** now resolve
+for real, closing the last of the three Person 1 policy-rule gaps. The `DiRegistrationTests`
+pin was renamed and flipped to
+`Persona1_Seam_EffectEngineResolvesNowThatDamageCalculatorLands`, same convention as the other
+two. New unit coverage in `AdditiveDamageCalculatorTests`. A full `PlayCard` call through the
+real DI-registered `ICardEngine` was manually driven to confirm actual damage lands on the
+enemy, not just that the chain resolves. Test count grew from 366 (above) to 371.
+
+**Important correction, found right after closing this seam**: `BusinessLayer.Effects.Strategies.DamageEffect`
+and the `ICardEngine`/`IEffectEngine`/`CardEffectRegistry` chain it belongs to are **not** on
+the path the live Battle API actually uses. `BattleService.PlayCardAsync` calls
+`Domain.Engine.Battle.IBattleEngine.PlayCard`, which uses the separate
+`Domain.Engine.Cards.CardEngine` — a different, non-interoperable card system (see §7's
+original two-battle-system table; this is exactly that split, still in effect). So the
+`AdditiveDamageCalculator` work above is real, tested, and correct, but it doesn't change what
+a client hitting `POST /api/battle/{id}/play-card` experiences — that request never reaches
+`DamageEffect`. Keep this in mind before assuming a BusinessLayer-side fix changes live
+behavior; check which `CardEngine`/`IEffectEngine` (there are two of each, Domain and
+BusinessLayer) is actually reachable from `BattleService` first.
+
+**Fixed separately, on the actually-live path**: `Domain.Engine.Cards.CardEngine.ResolveDamage`
+had the identical hardcoded-placeholder pattern (`strength: 0, defense: 0`) but real values
+were already sitting one call-frame away — `PlayCard`'s `BattleContext` carries
+`Player`/`Enemy`, `ResolveDamage` just wasn't passed it. Now threads
+`battleContext.Player.Strength` through always (the player is always the one playing the
+card) and `battleContext.Enemy.Defense` only when the card targets the enemy (a
+self/ally-targeted card, e.g. friendly fire, applies no defense — players have no Defense
+attribute to apply instead). Similarly, `BattleEngine.ExecuteEnemyAttack` (the enemy's attack,
+used by `ExecuteEnemyTurn`) never read `Enemy.AttackBonus` despite it being seeded on every
+enemy (`EnemySeedData`) and documented on the property as "added to this enemy's ... roll
+when it attacks" — now passed as the `strength` slot of that `DamageRequest`, since enemies
+have no Strength attribute. `CardEngineTests`' shared `Context()` helper had `Defense = 8`
+hardcoded on its `Enemy` for years with zero effect (nothing consumed it) — now that Defense
+is real, that value would have silently changed several existing tests' outcomes, so it
+became an `enemyDefense` parameter defaulting to 0, preserving every existing test's original
+intent, plus `playerStrength`. Added `PlayCardDamageAddsPlayerStrength`,
+`PlayCardDamageIsReducedByEnemyDefense`, `PlayCardSelfTargetedDamageIgnoresEnemyDefense`
+(`CardEngineTests`) and `AttackAddsEnemyAttackBonusToDamage` (`EnemyTurnTests`). Test count
+grew from 371 to 375.
+
+As of this update, all three Person 1 policy-rule seams found in this investigation
+(`IInitiativeRule`, `IEnemyActionRule`, `IDamageCalculator`) are closed.

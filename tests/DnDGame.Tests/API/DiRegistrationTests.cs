@@ -115,20 +115,23 @@ public class DiRegistrationTests
     }
 
     /// <summary>
-    /// Registered but not yet resolvable: building the effect chain requires the
-    /// Persona 1 seam — BusinessLayer IDamageCalculator, consumed by DamageEffect —
-    /// which has no production implementation yet. Pinned so the expected failure
-    /// flips to success automatically once Persona 1 registers that seam.
+    /// Used to be registered-but-not-resolvable: building the effect chain required
+    /// the Persona 1 seam — BusinessLayer IDamageCalculator, consumed by DamageEffect —
+    /// which had no production implementation. AdditiveDamageCalculator now closes it
+    /// (registered in AddCardBattleServices), so IEffectEngine resolves for real. This
+    /// test used to be a pin asserting a resolve failure; it now asserts the seam is
+    /// closed, same convention as the IInitiativeRule/IEnemyActionRule seam flips.
     /// </summary>
     [Fact]
-    public void Persona1_Seam_EffectEngineNotResolvableUntilDamageCalculatorLands()
+    public void Persona1_Seam_EffectEngineResolvesNowThatDamageCalculatorLands()
     {
         using var provider = BuildAll();
 
-        var exception = Assert.Throws<InvalidOperationException>(
-            () => provider.GetRequiredService<IEffectEngine>());
+        var effectEngine = provider.GetRequiredService<IEffectEngine>();
+        Assert.NotNull(effectEngine);
 
-        Assert.Contains("IDamageCalculator", exception.Message);
+        var cardEngine = provider.GetRequiredService<ICardEngine>();
+        Assert.NotNull(cardEngine);
     }
 
     /// <summary>
@@ -144,6 +147,48 @@ public class DiRegistrationTests
 
         Assert.NotNull(provider.GetRequiredService<IBattleEngine>());
         Assert.NotNull(provider.GetRequiredService<IBattleService>());
+    }
+
+    /// <summary>
+    /// Resolving IBattleEngine used to not be the same as it working: StartBattle
+    /// delegates to IInitiativeEngine.DetermineFirstTurn, which unconditionally
+    /// requires an IInitiativeRule, and no production implementation existed
+    /// anywhere in the codebase (only a test double in InitiativeEngineTests). Now
+    /// that AdditiveInitiativeRule is registered in AddBattleTurnSystemServices, a
+    /// real StartBattle call resolves an actual starting turn instead of failing
+    /// with MissingCombatRule. This test used to be a pin asserting that failure;
+    /// it now asserts the seam is closed, same convention as
+    /// Persona1_Seam_BattleServiceResolvesNowThatBattleEngineLands above.
+    /// </summary>
+    [Fact]
+    public void Persona1_Seam_StartBattleSucceedsNowThatInitiativeRuleLands()
+    {
+        using var provider = BuildAll();
+        var battleEngine = provider.GetRequiredService<IBattleEngine>();
+
+        var player = new DnDGame.Domain.Entities.Characters.PlayerCharacter
+        {
+            Id = 1,
+            Name = "Hero",
+            MaxHealth = 30,
+            CurrentHealth = 30
+        };
+        var enemy = new DnDGame.Domain.Entities.Enemies.Enemy { Id = 1, Name = "Goblin", Health = 15 };
+        var state = new BattleState
+        {
+            PlayerEnergy = 5,
+            PlayerMaxEnergy = 5,
+            Hand = new List<DnDGame.Domain.Entities.Cards.CardInstance>(),
+            DrawPile = new List<DnDGame.Domain.Entities.Cards.CardInstance>(),
+            DiscardPile = new List<DnDGame.Domain.Entities.Cards.CardInstance>(),
+            ActiveEffects = new List<DnDGame.Domain.Engine.Models.ActiveEffect>(),
+            BattleLog = new List<DnDGame.Domain.Engine.Models.BattleLogEntry>()
+        };
+
+        var result = battleEngine.StartBattle(new BattleContext(player, enemy, state));
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Data);
     }
 
     // --- Persona 1: battle/turn surface (implemented parts resolve) ---
