@@ -108,6 +108,12 @@ public static class DependencyInjection
             mapper.Register(EngineErrorCodes.EnemyDead, StatusCodes.Status409Conflict);
             mapper.Register(EngineErrorCodes.MissingCombatRule, StatusCodes.Status500InternalServerError);
             mapper.Register(EngineErrorCodes.RewardsAlreadyGranted, StatusCodes.Status409Conflict);
+
+            // Account/auth codes (see AccountErrorCodes remarks for why login uses one
+            // generic code instead of distinguishing "unknown account" from "wrong password").
+            mapper.Register(AccountErrorCodes.EmailAlreadyInUse, StatusCodes.Status409Conflict);
+            mapper.Register(AccountErrorCodes.UsernameAlreadyInUse, StatusCodes.Status409Conflict);
+            mapper.Register(AccountErrorCodes.InvalidCredentials, StatusCodes.Status401Unauthorized);
             return mapper;
         });
 
