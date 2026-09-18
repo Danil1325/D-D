@@ -339,6 +339,66 @@ public class QuestServiceTests
         Assert.Equal(ErrorCodes.Conflict, exception.ErrorCode);
     }
 
+    // --- Player-based queries and completion listing ---
+
+    [Fact]
+    public async Task GetCompletedQuests_ReturnsOnlyCompletedQuests()
+    {
+        var (service, store, _, _, _) = CreateScenario();
+        var firstMainQuestId = QuestId(store, "MQ-01");
+        await service.StartQuestAsync(1, firstMainQuestId);
+        await service.CompleteQuestAsync(1, firstMainQuestId);
+
+        var completed = await service.GetCompletedQuestsAsync(1);
+        var active = await service.GetActiveQuestsAsync(1);
+
+        Assert.Contains(completed, quest => quest.QuestId == firstMainQuestId);
+        Assert.DoesNotContain(active, quest => quest.QuestId == firstMainQuestId);
+    }
+
+    [Fact]
+    public async Task GetAvailableQuestsForPlayer_UsesThePlayersSession()
+    {
+        var (service, store, _, _, _) = CreateScenario();
+        var firstMainQuestId = QuestId(store, "MQ-01");
+
+        var available = await service.GetAvailableQuestsForPlayerAsync(1, locationId: 3);
+
+        Assert.Contains(available, quest => quest.Id == firstMainQuestId);
+    }
+
+    [Fact]
+    public async Task StartQuestForPlayer_ActivatesTheQuest()
+    {
+        var (service, store, _, _, _) = CreateScenario();
+        var firstMainQuestId = QuestId(store, "MQ-01");
+
+        var started = await service.StartQuestForPlayerAsync(1, firstMainQuestId);
+
+        Assert.Equal(QuestStatus.Active, started.Status);
+    }
+
+    [Fact]
+    public async Task CompleteQuestForPlayer_GrantsExperience()
+    {
+        var (service, store, player, _, _) = CreateScenario();
+        var firstMainQuestId = QuestId(store, "MQ-01");
+        await service.StartQuestForPlayerAsync(1, firstMainQuestId);
+
+        var completion = await service.CompleteQuestForPlayerAsync(1, firstMainQuestId);
+
+        Assert.Equal(100, completion.ExperienceGained);
+        Assert.Equal(100, player.CurrentXp);
+    }
+
+    [Fact]
+    public async Task PlayerBasedQueries_UnknownPlayer_FailsWithNotFound()
+    {
+        var (service, _, _, _, _) = CreateScenario();
+
+        await Assert.ThrowsAsync<DomainException>(() => service.GetActiveQuestsForPlayerAsync(99));
+    }
+
     // --- Scenario helpers ---
 
     private static (IQuestService Service, InMemoryGameDataStore Store, PlayerCharacter Player, GameSession Session, LevelProgressionRules Rules) CreateScenario(
@@ -349,6 +409,7 @@ public class QuestServiceTests
         var player = new PlayerCharacter
         {
             Id = CurrentPlayerId,
+            OwnerId = CurrentPlayerId.ToString(),
             Name = "Hero",
             Level = characterLevel,
             CurrentXp = xp,

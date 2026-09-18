@@ -31,6 +31,9 @@ public interface IQuestService
     /// <summary>Quests currently in progress (Active) for the session.</summary>
     Task<IReadOnlyList<QuestProgressView>> GetActiveQuestsAsync(int gameSessionId);
 
+    /// <summary>Quests already cleared (Completed) for the session.</summary>
+    Task<IReadOnlyList<QuestProgressView>> GetCompletedQuestsAsync(int gameSessionId);
+
     /// <summary>One quest from the catalog, regardless of the session's progress.</summary>
     Task<QuestView> GetQuestByIdAsync(int questId);
 
@@ -52,4 +55,23 @@ public interface IQuestService
 
     /// <summary>Fails an active quest. No experience or success flags are granted.</summary>
     Task FailQuestAsync(int gameSessionId, int questId);
+
+    // --- Player-based conveniences (resolve the player's own session) ---
+    // These exist so the API can be keyed by player id, keeping the session-level
+    // methods above as the shared implementation.
+
+    /// <summary>The quests the player's character may currently start. See <see cref="GetAvailableQuestsAsync"/>.</summary>
+    Task<IReadOnlyList<QuestView>> GetAvailableQuestsForPlayerAsync(int playerId, int? locationId = null);
+
+    /// <summary>The player's quests currently in progress.</summary>
+    Task<IReadOnlyList<QuestProgressView>> GetActiveQuestsForPlayerAsync(int playerId);
+
+    /// <summary>The player's quests already cleared.</summary>
+    Task<IReadOnlyList<QuestProgressView>> GetCompletedQuestsForPlayerAsync(int playerId);
+
+    /// <summary>Starts an offered quest for the player. See <see cref="StartQuestAsync"/>.</summary>
+    Task<QuestProgressView> StartQuestForPlayerAsync(int playerId, int questId);
+
+    /// <summary>Completes an active quest for the player. See <see cref="CompleteQuestAsync"/>.</summary>
+    Task<QuestCompletionResult> CompleteQuestForPlayerAsync(int playerId, int questId);
 }

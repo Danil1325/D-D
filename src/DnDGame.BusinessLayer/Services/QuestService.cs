@@ -1,3 +1,4 @@
+using System.Globalization;
 using DnDGame.BusinessLayer.Common.Errors;
 using DnDGame.BusinessLayer.Common.Exceptions;
 using DnDGame.BusinessLayer.Models;
@@ -69,6 +70,21 @@ public sealed class QuestService : IQuestService
 
         return playerQuests
             .Where(pq => pq.Status == QuestStatus.Active)
+            .Where(pq => questById.ContainsKey(pq.QuestId))
+            .Select(pq => ToProgressView(questById[pq.QuestId], pq))
+            .OrderBy(view => view.QuestId)
+            .ToList();
+    }
+
+    public async Task<IReadOnlyList<QuestProgressView>> GetCompletedQuestsAsync(int gameSessionId)
+    {
+        var session = await RequireOwnedSessionAsync(gameSessionId);
+        var playerQuests = await _playerQuestRepository.GetByGameSessionAsync(session.Id);
+        var quests = await _questRepository.GetAllAsync();
+        var questById = quests.ToDictionary(quest => quest.Id);
+
+        return playerQuests
+            .Where(pq => pq.Status == QuestStatus.Completed)
             .Where(pq => questById.ContainsKey(pq.QuestId))
             .Select(pq => ToProgressView(questById[pq.QuestId], pq))
             .OrderBy(view => view.QuestId)
@@ -226,6 +242,63 @@ public sealed class QuestService : IQuestService
 
         playerQuest.Status = QuestStatus.Failed;
         await _playerQuestRepository.UpdateAsync(playerQuest);
+    }
+
+    // --- Player-based conveniences ---
+
+    public async Task<IReadOnlyList<QuestView>> GetAvailableQuestsForPlayerAsync(int playerId, int? locationId = null)
+    {
+        var sessionId = await ResolveSessionIdForPlayerAsync(playerId);
+        return await GetAvailableQuestsAsync(sessionId, locationId);
+    }
+
+    public async Task<IReadOnlyList<QuestProgressView>> GetActiveQuestsForPlayerAsync(int playerId)
+    {
+        var sessionId = await ResolveSessionIdForPlayerAsync(playerId);
+        return await GetActiveQuestsAsync(sessionId);
+    }
+
+    public async Task<IReadOnlyList<QuestProgressView>> GetCompletedQuestsForPlayerAsync(int playerId)
+    {
+        var sessionId = await ResolveSessionIdForPlayerAsync(playerId);
+        return await GetCompletedQuestsAsync(sessionId);
+    }
+
+    public async Task<QuestProgressView> StartQuestForPlayerAsync(int playerId, int questId)
+    {
+        var sessionId = await ResolveSessionIdForPlayerAsync(playerId);
+        return await StartQuestAsync(sessionId, questId);
+    }
+
+    public async Task<QuestCompletionResult> CompleteQuestForPlayerAsync(int playerId, int questId)
+    {
+        var sessionId = await ResolveSessionIdForPlayerAsync(playerId);
+        return await CompleteQuestAsync(sessionId, questId);
+    }
+
+    private async Task<int> ResolveSessionIdForPlayerAsync(int playerId)
+    {
+        var characters = await _characterRepository.GetAllAsync();
+        var character = characters.FirstOrDefault(c => c.OwnerId == playerId.ToString(CultureInfo.InvariantCulture));
+        if (character is null)
+        {
+            throw new DomainException(ErrorCodes.NotFound, $"No character was found for player {playerId}.");
+        }
+
+        var sessions = await _gameSessionRepository.GetByCharacterIdAsync(character.Id);
+        var inProgressSessionId = sessions.FirstOrDefault(s => s.Status == GameSessionStatus.InProgress)?.Id;
+        if (inProgressSessionId.HasValue)
+        {
+            return inProgressSessionId.Value;
+        }
+
+        var anySessionId = sessions.FirstOrDefault()?.Id;
+        if (anySessionId.HasValue)
+        {
+            return anySessionId.Value;
+        }
+
+        throw new DomainException(ErrorCodes.NotFound, $"No game session was found for player {playerId}.");
     }
 
     // --- Grand operations shared by the public completion paths ---
