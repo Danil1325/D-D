@@ -727,3 +727,134 @@ grew from 371 to 375.
 
 As of this update, all three Person 1 policy-rule seams found in this investigation
 (`IInitiativeRule`, `IEnemyActionRule`, `IDamageCalculator`) are closed.
+
+## 19. Person 3 follow-up: Authentication (cookie-based)
+
+Added on `alexandru`, out-of-band from the phase list in `README.md` (auth was
+never one of the original numbered phases) — assigned separately, alongside the
+frontend's login/register cookie work in the `TheCrownofAsh_FrontEnd` repo. Built
+incrementally, one reviewed step at a time; see individual commits for the
+step-by-step history.
+
+**Decision: cookie authentication, not JWT.** Deliberate, not a default — the
+project is a single first-party browser frontend talking to its own backend, not a
+multi-client platform. Cookie auth means no token-storage code on the frontend (no
+`localStorage`, no manual `Authorization` header), an `HttpOnly` cookie the
+frontend's JS can never read (no XSS token theft), and a real server-side logout
+(`SignOutAsync` ends the session immediately, unlike a JWT which stays valid until
+it expires regardless). The accepted tradeoff is CSRF exposure from
+auto-attaching cookies, mitigated by `SameSite` + a restrictive CORS policy (see
+below) — flagged as needing a real antiforgery token only if frontend/backend ever
+move to genuinely different top-level domains in production.
+
+**New types, following the existing pattern exactly** (Entity → BusinessLayer
+repository interface → MockData repository → BusinessLayer service → thin
+Controller — the same shape as `Deck`/`Card`/`Battle`):
+- `Domain.Entities.Accounts.Account` — `Username`, `Email`, `PasswordHash`,
+  `CreatedAt`. **Deliberately has no relationship to `PlayerCharacter`** — see the
+  next paragraph.
+- `BusinessLayer.Repositories.Interfaces.IAccountRepository` /
+  `MockData.Repositories.MockAccountRepository` — case-insensitive
+  email/username lookup, backed by an additive `InMemoryGameDataStore.Accounts`
+  list, same as every other Mock* repository.
+- `BusinessLayer.Common.Errors.AccountErrorCodes` —
+  `EMAIL_ALREADY_IN_USE`/`USERNAME_ALREADY_IN_USE` (409), `INVALID_CREDENTIALS`
+  (401) — deliberately one generic code for any login failure, so a client can
+  never tell "unknown email" apart from "wrong password" and enumerate registered
+  accounts. Registered in the same shared `IErrorCodeHttpMapper` singleton as
+  every other feature's codes.
+- `BusinessLayer.Dtos.Accounts.{RegisterRequestDto,LoginRequestDto,CurrentUserDto}`
+  — `CurrentUserDto` is the only thing ever returned; it never carries
+  `PasswordHash`.
+- `BusinessLayer.Services.Interfaces.IAccountService` /
+  `BusinessLayer.Services.AccountService` — `RegisterAsync`, `LoginAsync`,
+  `GetByIdAsync`. Hashes/verifies via the DI-injected
+  `Microsoft.AspNetCore.Identity.IPasswordHasher<Account>` (never
+  `new PasswordHasher<Account>()` inline — per this project's DI rule), from the
+  `Microsoft.Extensions.Identity.Core` package (BusinessLayer's first-ever package
+  dependency beyond a `ProjectReference`, added specifically for this). One
+  mock-phase-only rule: an 8-character minimum password length, explicitly
+  documented as a placeholder, not a production policy.
+- `API.Controllers.AuthController` — `POST /api/auth/register`,
+  `POST /api/auth/login` (both call `HttpContext.SignInAsync` with claims built
+  from `CurrentUserDto`: `Id`→`NameIdentifier`, `Username`→`Name`,
+  `Email`→`Email` — never a password/hash claim), `POST /api/auth/logout`
+  (`SignOutAsync`; deliberately **not** `[Authorize]` — signing out an
+  already-signed-out session is a harmless no-op), `GET /api/auth/me`
+  (**`[Authorize]`**; re-fetches the account by the claimed id rather than
+  trusting stale claim data).
+
+**Deliberately NOT integrated with `ICurrentPlayerService`.** `ICurrentPlayerService`
+(consumed by `DeckService`/`BattleService`) actually returns a `PlayerCharacter`
+id, not an `Account` id — and there is still no designed relationship between the
+two (same open question as assumption 3 in §13). Rather than invent a 1:1
+Account-to-Character mapping or auto-create a character at registration (neither
+of which is anyone's actual game-design decision), `ICurrentPlayerService` and
+`MockCurrentPlayerService` were left **completely untouched**; Deck/Card/Battle
+still resolve the same fixed mock id they always have. Auth and the rest of the
+game are two independent verticals until the team actually designs that
+relationship — a follow-up decision, not a bug.
+
+**Program.cs / composition root wiring:**
+- `AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme).AddCookie(...)`
+  — cookie named `DnDGame.Auth`, `HttpOnly`, 7-day sliding expiration,
+  environment-conditional `SameSite`/`Secure` (`Lax`/`SameAsRequest` in
+  Development — the frontend runs on a different `localhost` port over plain
+  `http`; `None`/`Always` otherwise, assuming a real cross-site HTTPS production
+  setup). `OnRedirectToLogin`/`OnRedirectToAccessDenied` return plain 401/403 —
+  this is a JSON API, not an MVC app with a login page to redirect to.
+  `AddAuthorization()` added (wasn't previously registered; `UseAuthorization()`
+  existed in the pipeline already but had nothing behind it until now).
+- `AddCors()` with a named `"Frontend"` policy: explicit origin allowlist read
+  from `Cors:AllowedOrigins` in configuration (never a wildcard — incompatible
+  with `AllowCredentials()`), empty by default in `appsettings.json` (an
+  unconfigured deployment denies all cross-origin requests rather than silently
+  allowing everything) and set to the Vite dev server's origin in
+  `appsettings.Development.json`.
+- Pipeline order: `UseGlobalExceptionHandling` → (dev) Swagger →
+  `UseHttpsRedirection` → `UseCors` → `UseAuthentication` → `UseAuthorization` →
+  `MapControllers`.
+- `IPasswordHasher<Account>`/`IAccountService` registered in `AddMockData()`,
+  next to `ICardService`/`IDeckService` — not a fourth composition method, same
+  reasoning as why the error-mapper registrations all live in one place.
+- Data Protection (which encrypts/signs the cookie) needs no manual setup: on a
+  normal local dev machine it auto-persists its key ring to disk per-user (e.g.
+  DPAPI-protected files under `%LOCALAPPDATA%` on Windows), so cookies keep
+  validating across restarts on that machine with no configured key or User
+  Secret. This only becomes a real concern for a production deployment with
+  multiple instances or a non-persistent filesystem (containers): each instance
+  would otherwise get its own key ring, so a cookie from one instance wouldn't
+  validate on another, and a restart would invalidate every outstanding session —
+  that needs an explicit shared/persisted key store at deployment time, a concrete
+  hosting decision, not something built speculatively here.
+
+**Tests**: `MockAccountRepositoryTests` (case-insensitive lookup, incrementing
+ids, round-trip retrieval, missing-account results), `AccountServiceTests`
+(register success/hash-not-plaintext/duplicate email/duplicate
+username/validation, login success/wrong-password/unknown-email/validation,
+`GetByIdAsync` found/not-found), `AuthControllerTests` (the claims-mapping logic
+only — no controller-level integration tests were added, following the same
+explicit precedent as `DiceController`/`DeckController` having none), plus
+`IAccountRepository`/`IAccountService` added to the existing
+`DiRegistrationTests` theories and `AccountErrorCodes`' HTTP mappings added to
+`ErrorCodeHttpMapperTests`. Test count grew from 375 (§18) to 401.
+
+**Frontend integration** (separate repo, `TheCrownofAsh_FrontEnd`, branch
+`LogareRegistrareCookies`): `src/api/authApi.ts` wraps all four endpoints behind
+one `apiFetch` helper that always sets `credentials: 'include'` (required — the
+`HttpOnly`, cross-origin session cookie is otherwise silently dropped) and parses
+`ApiErrorResponse` into a typed `ApiError`; `Login.tsx`/`SignUp.tsx` call
+`login`/`register` and surface real backend error messages; `App.tsx` calls
+`GET /api/auth/me` on mount so a session survives a page refresh, and wires a real
+`onLogout` (previously a dead-end placeholder action) through to `MainMenu.tsx`.
+
+**Future-proofing note (a database is planned for Phase 6/7)**: none of this is
+tied to `MockData`. `AccountService` only depends on `IAccountRepository` —
+swapping `MockAccountRepository` for a real `DataAccessLayer` implementation
+backed by PostgreSQL requires no change to `AccountService`, `AuthController`, or
+any cookie/DI configuration. `PasswordHasher<Account>` doesn't care where the hash
+is stored. The one thing worth adding once a real database exists: a DB-level
+unique constraint on `Account.Email`/`Account.Username` — today's uniqueness
+check (query-then-insert) is safe only because `MockData` has no real concurrency;
+a real database under concurrent requests could otherwise let two simultaneous
+registrations both pass the check.

@@ -208,3 +208,16 @@ Do not leave any temporary `NuGet.Config`, local package source overrides, or ot
 - No engine interface from §7's "do not implement" list has a new implementation.
 - `dotnet build` and `dotnet test` both pass on the final branch state.
 - A short summary of what was built, and an explicit list of anything you deliberately left unbuilt because it depends on the §7 conflict, ready for me to relay back to the team.
+
+## 11. Later addition (post-handoff): Authentication
+
+Everything above describes the Dice/Card/Deck/Battle handoff, which is complete
+(see `docs/ARCHITECTURE.md` §14–§18). Separately, and out-of-band from the
+original phase/task list, cookie-based authentication (register/login/logout/me)
+was added afterward on the same `alexandru` branch — see
+`docs/ARCHITECTURE.md` §19 for the full writeup. It follows the same
+architectural pattern as everything else in this handoff (Entity → Repository →
+Service → thin Controller, DI via the existing composition root) and deliberately
+does **not** touch `ICurrentPlayerService` or any Person 1/2 engine code — the
+Account-to-PlayerCharacter relationship this would eventually need is still an
+open team decision, not resolved here.
