@@ -99,4 +99,19 @@ public class ErrorCodeHttpMapperTests
 
         Assert.Equal(expectedStatus, mapper.Map(errorCode));
     }
+
+    [Theory]
+    [InlineData(AccountErrorCodes.EmailAlreadyInUse, 409)]
+    [InlineData(AccountErrorCodes.UsernameAlreadyInUse, 409)]
+    [InlineData(AccountErrorCodes.InvalidCredentials, 401)]
+    public void CompositionRoot_RegistersAccountCodes(string errorCode, int expectedStatus)
+    {
+        var services = new ServiceCollection();
+        services.AddCardBattleServices();
+
+        using var provider = services.BuildServiceProvider();
+        var mapper = provider.GetRequiredService<IErrorCodeHttpMapper>();
+
+        Assert.Equal(expectedStatus, mapper.Map(errorCode));
+    }
 }

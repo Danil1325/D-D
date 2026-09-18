@@ -1,3 +1,4 @@
+using DnDGame.Domain.Entities.Accounts;
 using DnDGame.Domain.Entities.Characters;
 using DnDGame.Domain.Entities.Cards;
 using DnDGame.Domain.Entities.Classes;
@@ -53,6 +54,10 @@ public class InMemoryGameDataStore
     public List<Battle> Battles { get; } = new();
     public List<BattleDeck> BattleDecks { get; } = new();
 
+    // --- Auth data (empty until someone registers). Deliberately not linked to
+    // Characters — there is no Account-to-PlayerCharacter relationship yet.
+    public List<Account> Accounts { get; } = new();
+
     // Id counters only for the runtime tables above — every reference-data row gets
     // an explicit, hardcoded Id from its seed data instead, so cross-references
     // between seed files (e.g. a Choice pointing at an Enemy) are predictable.
@@ -63,6 +68,7 @@ public class InMemoryGameDataStore
     private int _nextDeckId = 1;
     private int _nextBattleId = 1;
     private int _nextBattleDeckId = 1;
+    private int _nextAccountId = 1;
 
     public int GetNextCharacterId() => _nextCharacterId++;
     public int GetNextCharacterTalentId() => _nextCharacterTalentId++;
@@ -71,4 +77,5 @@ public class InMemoryGameDataStore
     public int GetNextDeckId() => _nextDeckId++;
     public int GetNextBattleId() => _nextBattleId++;
     public int GetNextBattleDeckId() => _nextBattleDeckId++;
+    public int GetNextAccountId() => _nextAccountId++;
 }

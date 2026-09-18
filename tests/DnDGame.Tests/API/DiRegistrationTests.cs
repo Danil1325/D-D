@@ -243,6 +243,7 @@ public class DiRegistrationTests
     [InlineData(typeof(IDeckRepository))]
     [InlineData(typeof(IBattleRepository))]
     [InlineData(typeof(IBattleDeckRepository))]
+    [InlineData(typeof(IAccountRepository))]
     public void MockData_AllRepositoriesResolve(Type serviceType)
     {
         using var provider = BuildAll();
@@ -252,6 +253,7 @@ public class DiRegistrationTests
     [Theory]
     [InlineData(typeof(ICardService))]
     [InlineData(typeof(IDeckService))]
+    [InlineData(typeof(IAccountService))]
     public void MockData_ApplicationServicesResolve(Type serviceType)
     {
         using var provider = BuildAll();
