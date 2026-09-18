@@ -33,6 +33,7 @@ public class InMemoryGameDataStore
     public List<CharacterPortrait> Portraits { get; } = new();
     public List<Talent> Talents { get; } = new();
     public List<Enemy> Enemies { get; } = new();
+    public List<Location> Locations { get; } = new();
     public List<Adventure> Adventures { get; } = new();
     public List<StoryNode> StoryNodes { get; } = new();
     public List<Choice> Choices { get; } = new();
