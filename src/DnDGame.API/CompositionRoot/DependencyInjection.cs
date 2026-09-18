@@ -72,6 +72,8 @@ public static class DependencyInjection
         services.AddSingleton(new HandRules(maxHandSize: 10));
         services.AddSingleton(new PlayRules(maxEnergyPerTurn: 5, allowOverdraft: false));
         services.AddSingleton(new CardVisibilityRules());
+        services.AddSingleton(new LevelProgressionRules());
+        services.AddScoped<IExperienceService, ExperienceService>();
 
         // --- Engines (scoped, per-request) ---
         services.AddScoped<IDeckEngine, DeckEngine>();

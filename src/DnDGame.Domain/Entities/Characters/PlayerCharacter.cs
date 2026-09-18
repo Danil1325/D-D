@@ -45,7 +45,9 @@ public class PlayerCharacter : BaseEntity
     public int Charisma { get; set; }
 
     public int Level { get; set; } = 1;
+    /// <summary>Cumulative EXP across all levels.</summary>
     public int CurrentXp { get; set; }
+    public int SkillPoints { get; set; }
 
     public DateTime CreatedAt { get; set; }
 
