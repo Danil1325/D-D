@@ -1,4 +1,4 @@
-﻿using DnDGame.Domain.Enums;
+using DnDGame.Domain.Enums;
 using DnDGame.MockData;
 
 namespace DnDGame.Tests.MockData;
@@ -9,7 +9,7 @@ public class ScenarioMainQuestSeedDataTests
     public void MainQuestChain_HasFifteenLinkedQuestsWithoutHardLevelGates()
     {
         var store = MockDataBootstrapper.CreateSeededStore();
-        var quests = store.Quests.OrderBy(quest => quest.Id).ToList();
+        var quests = store.Quests.Where(quest => quest.QuestType == QuestType.Main).OrderBy(quest => quest.Id).ToList();
 
         Assert.Equal(15, quests.Count);
         Assert.Equal(15, quests.Select(quest => quest.Code).Distinct().Count());
@@ -43,7 +43,7 @@ public class ScenarioMainQuestSeedDataTests
         var store = MockDataBootstrapper.CreateSeededStore();
         Assert.Equal(store.StoryScenes.Count, store.StoryScenes.Select(scene => scene.Id).Distinct().Count());
 
-        foreach (var quest in store.Quests)
+        foreach (var quest in store.Quests.Where(quest => quest.QuestType == QuestType.Main))
         {
             var locations = quest.LocationId is int id ? new[] { id } : quest.PossibleLocationIds.ToArray();
             Assert.NotEmpty(locations);
@@ -162,7 +162,7 @@ public class ScenarioMainQuestSeedDataTests
         var final = store.Quests.Single(quest => quest.Code == "MQ-15");
         Assert.Contains("Ash Clock", final.ScenarioNotes);
         Assert.Null(final.NextQuestId);
-        Assert.All(store.Quests.SelectMany(quest => quest.Rewards), reward =>
+        Assert.All(store.Quests.Where(quest => quest.QuestType == QuestType.Main).SelectMany(quest => quest.Rewards), reward =>
         {
             Assert.Equal(0, reward.WarScore);
             Assert.Empty(reward.CompanionLoyalty);

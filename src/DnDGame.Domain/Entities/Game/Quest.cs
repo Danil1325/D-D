@@ -10,6 +10,26 @@ public class Quest : BaseEntity
     public string Title { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
     public QuestType QuestType { get; set; }
+
+    /// <summary>Side quests are never mandatory for the main quest chain.</summary>
+    public bool IsOptional => QuestType == QuestType.Side;
+
+    /// <summary>Quest completion EXP, excluding objective and combat rewards.</summary>
+    public int ExperienceReward => Rewards.Sum(reward => reward.Experience);
+
+    public ICollection<QuestEnemy> Enemies { get; set; } = new List<QuestEnemy>();
+    public string EncounterDescription { get; set; } = string.Empty;
+    public ICollection<string> AdditionalRewards { get; set; } = new List<string>();
+
+    /// <summary>All entry flags must match; an empty set imposes no story-flag restrictions.</summary>
+    public Dictionary<string, bool> RequiredFlags { get; set; } = new();
+
+    /// <summary>Common successful-completion flags, never applied on failure.</summary>
+    public Dictionary<string, bool> ResultFlags { get; set; } = new();
+
+    /// <summary>Alternative success/failure effects; select one outcome rather than applying every entry.</summary>
+    public ICollection<QuestOutcome> Outcomes { get; set; } = new List<QuestOutcome>();
+
     /// <summary>Fixed primary location, or null when the region depends on the player's route.</summary>
     public int? LocationId { get; set; }
 
