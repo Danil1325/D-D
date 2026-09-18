@@ -30,10 +30,12 @@ using DnDGame.Domain.Engine.EnemyActions;
 using DnDGame.Domain.Engine.Initiative;
 using DnDGame.Domain.Engine.SavingThrows;
 using DnDGame.Domain.Engine.Turn;
+using DnDGame.Domain.Entities.Accounts;
 using DnDGame.MockData;
 using DnDGame.MockData.Repositories;
 using DnDGame.MockData.Services;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
 
 // There are two IDamageCalculator contracts on this branch:
@@ -228,6 +230,12 @@ public static class DependencyInjection
         services.AddScoped<ICurrentPlayerService, MockCurrentPlayerService>();
         services.AddScoped<ICardService, CardService>();
         services.AddScoped<IDeckService, DeckService>();
+
+        // Auth: PasswordHasher<Account> is the real, non-mock implementation (no
+        // "mock hashing" phase — there's nothing database-specific about it), kept
+        // here only because this is where every other feature service is wired.
+        services.AddSingleton<IPasswordHasher<Account>, PasswordHasher<Account>>();
+        services.AddScoped<IAccountService, AccountService>();
 
         // BattleService depends on Domain.Engine.Battle.IBattleEngine; the engine
         // set it needs is registered in AddBattleTurnSystemServices, so it resolves.

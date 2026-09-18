@@ -253,6 +253,7 @@ public class DiRegistrationTests
     [Theory]
     [InlineData(typeof(ICardService))]
     [InlineData(typeof(IDeckService))]
+    [InlineData(typeof(IAccountService))]
     public void MockData_ApplicationServicesResolve(Type serviceType)
     {
         using var provider = BuildAll();
