@@ -30,6 +30,7 @@ public class BattleService : IBattleService
     private readonly IBattleEngine _battleEngine;
     private readonly PlayRules _playRules;
     private readonly ICurrentPlayerService _currentPlayerService;
+    private readonly ICombatExperienceCalculator _combatExperienceCalculator;
 
     public BattleService(
         IBattleRepository battleRepository,
@@ -42,7 +43,8 @@ public class BattleService : IBattleService
         IDeckEngine deckEngine,
         IBattleEngine battleEngine,
         PlayRules playRules,
-        ICurrentPlayerService currentPlayerService)
+        ICurrentPlayerService currentPlayerService,
+        ICombatExperienceCalculator combatExperienceCalculator)
     {
         _battleRepository = battleRepository;
         _battleDeckRepository = battleDeckRepository;
@@ -55,6 +57,7 @@ public class BattleService : IBattleService
         _battleEngine = battleEngine;
         _playRules = playRules;
         _currentPlayerService = currentPlayerService;
+        _combatExperienceCalculator = combatExperienceCalculator;
     }
 
     public async Task<BattleStateDto> StartBattleAsync(StartBattleRequestDto request)
@@ -137,6 +140,8 @@ public class BattleService : IBattleService
         battleDeck.BattleId = createdBattle.Id;
         ApplyState(battleDeck, finalState);
         var createdBattleDeck = await _battleDeckRepository.AddAsync(battleDeck);
+        await AwardCombatExperienceAsync(createdBattle, player, enemy);
+        await _battleRepository.UpdateAsync(createdBattle);
 
         return BattleStateDto.FromDomain(createdBattle, createdBattleDeck, enemy.Health);
     }
@@ -157,6 +162,9 @@ public class BattleService : IBattleService
         // A missing card is passed through as null and left for the engine to reject.
         var card = battleDeck.Hand.FirstOrDefault(c => c.InstanceId == request.CardInstanceId);
 
+        if (battle.Status == GameSessionStatus.Abandoned)
+            throw new DomainException(ErrorCodes.Conflict, "An abandoned battle cannot be resumed.");
+
         var state = BuildState(battle, battleDeck, enemy);
         var context = new BattleContext(player, enemy, state);
 
@@ -168,6 +176,7 @@ public class BattleService : IBattleService
 
         ApplyState(battle, result.Data);
         ApplyState(battleDeck, result.Data);
+        await AwardCombatExperienceAsync(battle, player, enemy);
         await _battleRepository.UpdateAsync(battle);
         await _battleDeckRepository.UpdateAsync(battleDeck);
 
@@ -177,6 +186,9 @@ public class BattleService : IBattleService
     public async Task<BattleStateDto> EndTurnAsync(int battleId)
     {
         var (battle, battleDeck, player, enemy) = await LoadBattleAsync(battleId);
+        if (battle.Status == GameSessionStatus.Abandoned)
+            throw new DomainException(ErrorCodes.Conflict, "An abandoned battle cannot be resumed.");
+
         var state = BuildState(battle, battleDeck, enemy);
         var context = new BattleContext(player, enemy, state);
 
@@ -205,6 +217,7 @@ public class BattleService : IBattleService
 
         ApplyState(battle, finalState);
         ApplyState(battleDeck, finalState);
+        await AwardCombatExperienceAsync(battle, player, enemy);
         await _battleRepository.UpdateAsync(battle);
         await _battleDeckRepository.UpdateAsync(battleDeck);
 
@@ -256,6 +269,23 @@ public class BattleService : IBattleService
         }
 
         return (battle, battleDeck, player, enemy);
+    }
+
+    private async Task AwardCombatExperienceAsync(Battle battle, PlayerCharacter player, Enemy enemy)
+    {
+        if (battle.Status != GameSessionStatus.Victory)
+            return;
+
+        var session = await _gameSessionRepository.GetByIdAsync(battle.GameSessionId);
+        if (session is null)
+            throw new DomainException(ErrorCodes.NotFound, "The battle session was not found.");
+
+        var reward = _combatExperienceCalculator.CalculateAndAward(battle, enemy, session, player);
+        if (reward.WasGranted || reward.RepeatedSummon)
+        {
+            await _characterRepository.UpdateAsync(player);
+            await _gameSessionRepository.UpdateAsync(session);
+        }
     }
 
     private static BattleState BuildState(Battle battle, BattleDeck battleDeck, Enemy enemy) => new()

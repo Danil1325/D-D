@@ -9,6 +9,12 @@ namespace DnDGame.Domain.Entities.Game;
 /// </summary>
 public class GameSession : BaseEntity
 {
+    /// <summary>Battle IDs whose EXP reward has already been processed in this session.</summary>
+    public HashSet<int> ExperienceRewardedBattleIds { get; set; } = new();
+
+    /// <summary>Summoner instances for which a summoned opponent has already earned EXP.</summary>
+    public HashSet<Guid> ExperienceRewardedSummonerIds { get; set; } = new();
+
     public int CharacterId { get; set; }
     public PlayerCharacter? PlayerCharacter { get; set; }
 

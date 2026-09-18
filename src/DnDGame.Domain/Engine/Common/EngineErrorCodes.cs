@@ -15,4 +15,12 @@ public static class EngineErrorCodes
     public const string InvalidDice = "INVALID_DICE";
     public const string ConsequenceAlreadyApplied = "CONSEQUENCE_ALREADY_APPLIED";
     public const string RewardsAlreadyGranted = "REWARDS_ALREADY_GRANTED";
+
+    // Scenario engine (Domain.Engine.Scenario)
+    public const string ScenarioInvalidState = "SCENARIO_INVALID_STATE";
+    public const string ScenarioSceneNotFound = "SCENARIO_SCENE_NOT_FOUND";
+    public const string ScenarioChoiceNotFound = "SCENARIO_CHOICE_NOT_FOUND";
+    public const string ScenarioChoiceAlreadySelected = "SCENARIO_CHOICE_ALREADY_SELECTED";
+    public const string ScenarioRequirementNotMet = "SCENARIO_REQUIREMENT_NOT_MET";
+    public const string ScenarioStoryCompleted = "SCENARIO_STORY_COMPLETED";
 }

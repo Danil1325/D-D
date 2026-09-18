@@ -250,7 +250,7 @@ public class BattleServiceTests
         var player = new PlayerCharacter { Id = CurrentPlayerId, Name = "Hero", MaxHealth = 30, CurrentHealth = 30 };
         store.Characters.Add(player);
 
-        var enemy = new Enemy { Id = 1, Name = "Goblin", Health = 15 };
+        var enemy = new Enemy { Id = 1, Name = "Goblin", Family = EnemyFamily.Goblin, Tier = EnemyTier.Base, Health = 15 };
         store.Enemies.Add(enemy);
 
         var node = new StoryNode { Id = 1, NodeType = NodeType.Combat, EnemyId = enemy.Id };
@@ -287,9 +287,69 @@ public class BattleServiceTests
             deckEngine,
             engine,
             playRules,
-            currentPlayerService);
+            currentPlayerService,
+            new CombatExperienceCalculator(new ExperienceService(new LevelProgressionRules())));
 
         return (service, store, engine, session, deck, enemy, player);
+    }
+
+
+    [Theory]
+    [InlineData("card")]
+    [InlineData("turn")]
+    [InlineData("enemy")]
+    public async Task Victory_FromEachAction_AwardsExperienceOnce(string action)
+    {
+        var (service, store, engine, session, deck, _, player) = CreateScenario();
+        player.CurrentXp = 110;
+        var started = await service.StartBattleAsync(new StartBattleRequestDto { GameSessionId = session.Id, DeckId = deck.Id });
+
+        EngineResult<BattleState> Win(BattleContext context)
+        {
+            context.BattleState.BattleStatus = BattleStatus.Victory;
+            return EngineResult<BattleState>.Ok(context.BattleState);
+        }
+
+        if (action == "card")
+        {
+            engine.OnPlayCard = (context, _) => Win(context);
+            await service.PlayCardAsync(started.Id, new PlayCardRequestDto());
+        }
+        else
+        {
+            engine.OnEndTurn = context =>
+            {
+                if (action == "turn") return Win(context);
+                context.BattleState.BattleStatus = BattleStatus.EnemyTurn;
+                return EngineResult<BattleState>.Ok(context.BattleState);
+            };
+            engine.OnExecuteEnemyTurn = Win;
+            await service.EndTurnAsync(started.Id);
+        }
+
+        Assert.Equal(130, player.CurrentXp);
+        Assert.Equal(2, player.Level);
+        Assert.Equal(3, player.SkillPoints);
+        Assert.True(store.Battles.Single().RewardsGranted);
+        await service.GetBattleStateAsync(started.Id);
+        Assert.Equal(130, player.CurrentXp);
+    }
+
+    [Fact]
+    public async Task AbandonedBattle_CannotBeResumedToEarnExperience()
+    {
+        var (service, store, engine, session, deck, _, player) = CreateScenario();
+        var started = await service.StartBattleAsync(new StartBattleRequestDto { GameSessionId = session.Id, DeckId = deck.Id });
+        store.Battles.Single().Status = GameSessionStatus.Abandoned;
+        engine.OnEndTurn = context =>
+        {
+            context.BattleState.BattleStatus = BattleStatus.Victory;
+            return EngineResult<BattleState>.Ok(context.BattleState);
+        };
+
+        await Assert.ThrowsAsync<DomainException>(() => service.EndTurnAsync(started.Id));
+        await Assert.ThrowsAsync<DomainException>(() => service.PlayCardAsync(started.Id, new PlayCardRequestDto()));
+        Assert.Equal(0, player.CurrentXp);
     }
 
     private sealed class FixedCurrentPlayerService : ICurrentPlayerService

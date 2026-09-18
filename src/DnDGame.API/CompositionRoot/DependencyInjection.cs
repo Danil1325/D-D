@@ -4,8 +4,9 @@
 //   - AddCardBattleServices()      -> Card-battle feature components (Persoana 2, branch catalina).
 //   - AddBattleTurnSystemServices()-> Battle/Turn system integration surface (Persoana 1, branch battle_models).
 //   - AddMockData()                -> In-memory store + Mock* repositories for the mock-data phase.
-//
-// Program.cs only calls these three methods; every game-logic registration lives
+//   - AddScenarioServices()        -> Interactive scenario engine (Persoana 3).
+
+// Program.cs only calls these four methods; every game-logic registration lives
 // here. The container stays lazy (no ValidateOnBuild), so registrations whose
 // dependency graph is not completed by Persoana 1 yet still let the app boot — they
 // throw only if someone actually resolves them. Each such gap is marked as a
@@ -29,6 +30,7 @@ using DnDGame.Domain.Engine.Dice;
 using DnDGame.Domain.Engine.EnemyActions;
 using DnDGame.Domain.Engine.Initiative;
 using DnDGame.Domain.Engine.SavingThrows;
+using DnDGame.Domain.Engine.Scenario;
 using DnDGame.Domain.Engine.Turn;
 using DnDGame.Domain.Entities.Accounts;
 using DnDGame.MockData;
@@ -72,6 +74,9 @@ public static class DependencyInjection
         services.AddSingleton(new HandRules(maxHandSize: 10));
         services.AddSingleton(new PlayRules(maxEnergyPerTurn: 5, allowOverdraft: false));
         services.AddSingleton(new CardVisibilityRules());
+        services.AddSingleton(new LevelProgressionRules());
+        services.AddScoped<IExperienceService, ExperienceService>();
+        services.AddScoped<ICombatExperienceCalculator, CombatExperienceCalculator>();
 
         // --- Engines (scoped, per-request) ---
         services.AddScoped<IDeckEngine, DeckEngine>();
@@ -226,6 +231,11 @@ public static class DependencyInjection
         services.AddScoped<IBattleRepository, MockBattleRepository>();
         services.AddScoped<IBattleDeckRepository, MockBattleDeckRepository>();
         services.AddScoped<IAccountRepository, MockAccountRepository>();
+        services.AddScoped<IQuestRepository, MockQuestRepository>();
+        services.AddScoped<IPlayerQuestRepository, MockPlayerQuestRepository>();
+        services.AddScoped<IScenarioProgressRepository, MockScenarioProgressRepository>();
+        services.AddScoped<IStorySceneRepository, MockStorySceneRepository>();
+        services.AddScoped<ILocationRepository, MockLocationRepository>();
 
         services.AddScoped<ICurrentPlayerService, MockCurrentPlayerService>();
         services.AddScoped<ICardService, CardService>();
@@ -240,6 +250,19 @@ public static class DependencyInjection
         // BattleService depends on Domain.Engine.Battle.IBattleEngine; the engine
         // set it needs is registered in AddBattleTurnSystemServices, so it resolves.
         services.AddScoped<IBattleService, BattleService>();
+        return services;
+    }
+
+    /// <summary>
+    /// Registers the interactive scenario engine (Persoana 3). The engine is a
+    /// stateless state machine and is registered as a singleton.
+    /// </summary>
+    public static IServiceCollection AddScenarioServices(this IServiceCollection services)
+    {
+        services.AddSingleton<IScenarioEngine, ScenarioEngine>();
+        services.AddScoped<IQuestService, QuestService>();
+        services.AddScoped<IScenarioService, ScenarioService>();
+        services.AddScoped<IProgressionService, ProgressionService>();
         return services;
     }
 }
