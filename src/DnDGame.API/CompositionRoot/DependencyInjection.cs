@@ -74,6 +74,7 @@ public static class DependencyInjection
         services.AddSingleton(new CardVisibilityRules());
         services.AddSingleton(new LevelProgressionRules());
         services.AddScoped<IExperienceService, ExperienceService>();
+        services.AddScoped<ICombatExperienceCalculator, CombatExperienceCalculator>();
 
         // --- Engines (scoped, per-request) ---
         services.AddScoped<IDeckEngine, DeckEngine>();

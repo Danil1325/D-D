@@ -74,6 +74,13 @@ public class Battle : BaseEntity
     public int EnemyId { get; set; }
 
     /// <summary>
+    /// Stable identity of the individual summoner across encounters in this session.
+    /// Null for ordinary enemies; all repeat summons from that individual share this value.
+    /// This is an instance identifier, not an enemy template ID.
+    /// </summary>
+    public Guid? SummonerInstanceId { get; set; }
+
+    /// <summary>
     /// Navigation property to the enemy.
     /// </summary>
     public virtual Enemy? Enemy { get; set; }
