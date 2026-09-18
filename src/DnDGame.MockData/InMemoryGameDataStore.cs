@@ -57,6 +57,11 @@ public class InMemoryGameDataStore
     public List<Battle> Battles { get; } = new();
     public List<BattleDeck> BattleDecks { get; } = new();
 
+    // --- Runtime / gameplay data (empty until a quest is started by the scenario
+    // engine or the quest service) ---
+    public List<PlayerQuest> PlayerQuests { get; } = new();
+    public List<ScenarioProgress> ScenarioProgresses { get; } = new();
+
     // --- Auth data (empty until someone registers). Deliberately not linked to
     // Characters — there is no Account-to-PlayerCharacter relationship yet.
     public List<Account> Accounts { get; } = new();
@@ -72,6 +77,8 @@ public class InMemoryGameDataStore
     private int _nextBattleId = 1;
     private int _nextBattleDeckId = 1;
     private int _nextAccountId = 1;
+    private int _nextPlayerQuestId = 1;
+    private int _nextScenarioProgressId = 1;
 
     public int GetNextCharacterId() => _nextCharacterId++;
     public int GetNextCharacterTalentId() => _nextCharacterTalentId++;
@@ -81,4 +88,6 @@ public class InMemoryGameDataStore
     public int GetNextBattleId() => _nextBattleId++;
     public int GetNextBattleDeckId() => _nextBattleDeckId++;
     public int GetNextAccountId() => _nextAccountId++;
+    public int GetNextPlayerQuestId() => _nextPlayerQuestId++;
+    public int GetNextScenarioProgressId() => _nextScenarioProgressId++;
 }
