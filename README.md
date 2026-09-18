@@ -1,7 +1,8 @@
 # D&D University Web Game — Backend
 
-Single-player, D&D-inspired web game. React + TypeScript frontend (not built yet),
-ASP.NET Core Web API backend, PostgreSQL (introduced in Phase 6), layered architecture.
+Single-player, D&D-inspired web game. React + TypeScript frontend (separate repo,
+`TheCrownofAsh_FrontEnd`), ASP.NET Core Web API backend, PostgreSQL (introduced in
+Phase 6), layered architecture.
 
 See `docs/ARCHITECTURE.md` for the full component reference — every class/interface,
 the DI composition root, the Result Pattern, error-code surfaces, and the current
@@ -38,8 +39,13 @@ no longer in the repo.)
 - [ ] Phase 7 — Replace mock data with database repositories
 - [ ] Phase 8 — Database-backed test pass
 - [ ] Phase 9 — React frontend
-- [ ] Phase 10 — Connect frontend to API
+- [x] Phase 10 — Connect frontend to API *(partial — see Authentication below;
+  the rest of the frontend/API integration is still pending)*
 - [ ] Phase 11 — Final testing / polish
+
+**Out-of-band addition — Authentication (cookie-based)**: not part of the original
+phase list above, but implemented end-to-end (backend + frontend) ahead of it. See
+the "Authentication" section below and `docs/ARCHITECTURE.md` §19.
 
 ## Solution layout
 
@@ -59,7 +65,7 @@ DnDGame.sln
 │   └── DnDGame.API/             ASP.NET Core Web API — controllers, DI composition
 │                                 root, middleware, Program.cs, Swagger.
 └── tests/
-    └── DnDGame.Tests/           xUnit test suite (375 tests as of this writing).
+    └── DnDGame.Tests/           xUnit test suite (401 tests as of this writing).
 ```
 
 `DnDGame.Domain` currently contains 26 entity classes and 23 enums. `DnDGame.MockData`
@@ -84,8 +90,36 @@ mapping):
 - `POST /api/battle/start`, `GET /api/battle/{battleId}`, `POST /api/battle/{battleId}/play-card`,
   `POST /api/battle/{battleId}/end-turn`, `GET /api/battle/{battleId}/log` — battle lifecycle.
   The full flow now works end-to-end through the real engine (see `docs/ARCHITECTURE.md` §18).
+- `POST /api/auth/register`, `POST /api/auth/login`, `POST /api/auth/logout`,
+  `GET /api/auth/me` — cookie-based authentication (see "Authentication" below and
+  `docs/ARCHITECTURE.md` §19).
 
 No controllers exist yet for Character, Adventure/story-graph, or GameSession.
+
+## Authentication
+
+Cookie-based, via ASP.NET Core's built-in cookie authentication — deliberately not
+JWT (see `docs/ARCHITECTURE.md` §19 for the reasoning: single first-party browser
+client, no token storage/XSS exposure on the frontend, real server-side logout).
+
+- `Account` (Domain), `IAccountRepository`/`MockAccountRepository`, and
+  `IAccountService`/`AccountService` follow the same Entity → Repository → Service
+  → Controller pattern as every other feature (`Deck`, `Card`, `Battle`).
+- Passwords are hashed with `Microsoft.AspNetCore.Identity.PasswordHasher<Account>`
+  (via `Microsoft.Extensions.Identity.Core`) — never stored in plaintext, never
+  hand-rolled salting.
+- The session cookie is `HttpOnly`, with environment-conditional `SameSite`/`Secure`
+  (`Lax`/`SameAsRequest` in dev, `None`/`Always` otherwise), and CORS is restricted
+  to an explicit, configuration-driven frontend origin with `AllowCredentials()` —
+  required because the frontend lives in a separate repo/origin.
+- **Deliberately unrelated to `ICurrentPlayerService`**: there is still no
+  Account-to-`PlayerCharacter` link. `ICurrentPlayerService` (used by
+  Deck/Card/Battle) is untouched and still resolves the mock fixed id — this was an
+  explicit decision, not an oversight, to avoid inventing an account/character
+  relationship no one has designed yet.
+- The React frontend (`TheCrownofAsh_FrontEnd`, branch `LogareRegistrareCookies`)
+  is already wired to all four endpoints via `src/api/authApi.ts`, including a
+  session check on load (`GET /api/auth/me`) so a login survives a page refresh.
 
 ## Running it locally
 
@@ -103,4 +137,4 @@ This opens Swagger at `/swagger` with the endpoints listed above.
 dotnet test
 ```
 
-Runs the full xUnit suite (375 tests, 0 failures as of this writing).
+Runs the full xUnit suite (401 tests, 0 failures as of this writing).
