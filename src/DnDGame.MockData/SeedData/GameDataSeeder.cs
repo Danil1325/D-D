@@ -16,6 +16,7 @@ internal static class GameDataSeeder
         CardSeedData.Seed(store);
         EnemySeedData.Seed(store);
         LocationSeedData.Seed(store);
+        ScenarioMainQuestSeedData.Seed(store);
         AdventureSeedData.Seed(store);
     }
 }

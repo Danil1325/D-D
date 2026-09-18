@@ -1,4 +1,4 @@
-﻿using DnDGame.Domain.Entities.Game;
+using DnDGame.Domain.Entities.Game;
 using DnDGame.Domain.Enums;
 
 namespace DnDGame.MockData.SeedData;
@@ -6,7 +6,7 @@ namespace DnDGame.MockData.SeedData;
 /// <summary>
 /// Seeds the seven scenario locations with stable IDs and exact frontend image keys.
 /// Levels, encounter families and safety are initial mock balance values.
-/// Quest lists remain empty until actual quest definitions are seeded.
+/// Quest lists are populated by the subsequent scenario quest seed.
 /// </summary>
 internal static class LocationSeedData
 {
