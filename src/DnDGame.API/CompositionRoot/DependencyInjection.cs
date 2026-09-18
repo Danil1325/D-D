@@ -234,6 +234,8 @@ public static class DependencyInjection
         services.AddScoped<IQuestRepository, MockQuestRepository>();
         services.AddScoped<IPlayerQuestRepository, MockPlayerQuestRepository>();
         services.AddScoped<IScenarioProgressRepository, MockScenarioProgressRepository>();
+        services.AddScoped<IStorySceneRepository, MockStorySceneRepository>();
+        services.AddScoped<ILocationRepository, MockLocationRepository>();
 
         services.AddScoped<ICurrentPlayerService, MockCurrentPlayerService>();
         services.AddScoped<ICardService, CardService>();
@@ -259,6 +261,7 @@ public static class DependencyInjection
     {
         services.AddSingleton<IScenarioEngine, ScenarioEngine>();
         services.AddScoped<IQuestService, QuestService>();
+        services.AddScoped<IScenarioService, ScenarioService>();
         return services;
     }
 }

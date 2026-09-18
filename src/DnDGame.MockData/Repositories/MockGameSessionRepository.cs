@@ -18,6 +18,15 @@ public class MockGameSessionRepository : IGameSessionRepository
         return Task.FromResult(session is null ? null : Hydrate(session));
     }
 
+    public Task<IReadOnlyList<GameSession>> GetByCharacterIdAsync(int characterId)
+    {
+        return Task.FromResult<IReadOnlyList<GameSession>>(
+            _store.GameSessions
+                .Where(session => session.CharacterId == characterId)
+                .Select(Hydrate)
+                .ToList());
+    }
+
     public Task<GameSession> AddAsync(GameSession session)
     {
         session.Id = _store.GetNextGameSessionId();
