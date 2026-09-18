@@ -9,9 +9,8 @@ namespace DnDGame.MockData.SeedData;
 /// </summary>
 internal static class ScenarioMainQuestSeedData
 {
-    public static void Seed(InMemoryGameDataStore store)
+public static void Seed(InMemoryGameDataStore store)
     {
-        SeedSceneReferences(store);
         store.Quests.AddRange(new[]
         {
             CreateQuest(1, "Ash on the Overlook",
@@ -276,62 +275,8 @@ internal static class ScenarioMainQuestSeedData
         TargetCode = targetCode,
         RequiredAmount = requiredAmount,
         IsOptional = isOptional,
-        Rewards = experience == 0
+Rewards = experience == 0
             ? new List<QuestReward>()
             : new List<QuestReward> { new() { Experience = experience } }
     };
-
-    private static void SeedSceneReferences(InMemoryGameDataStore store)
-    {
-        // Reference catalog only: no dialogue/choice graph is invented here.
-        // Chapter 0 denotes an unnumbered source section.
-        // Chapter 11 has three variants because the last fragment's location is not fixed.
-        AddScene(store, 1001, 1, 1, "Ash at Hero's Overlook", 3);
-        AddScene(store, 1201, 1, 2, "The Wood That Remembers", 7);
-        AddScene(store, 1202, 1, 2, "Ash Beneath Ashtonia", 1);
-        AddScene(store, 1203, 1, 2, "The Lighthouse Guild", 4);
-        AddScene(store, 1204, 1, 2, "The Silence of Karag-Dur", 6);
-        AddScene(store, 2003, 2, 3, "The Lighthouse with No Sea-Light", 4);
-        AddScene(store, 2004, 2, 4, "Companions in the Lantern Hall", 4);
-        AddScene(store, 2005, 2, 5, "The Missing Reports", 4);
-        AddScene(store, 3005, 3, 0, "The Silent Grain Road", 5);
-        AddScene(store, 3006, 3, 6, "A Town Being Consumed", 5);
-        AddScene(store, 3007, 3, 7, "The Voice Behind the Face", 5);
-        AddScene(store, 4008, 4, 8, "Ashtonia's Sealed Chamber", 1);
-        AddScene(store, 4009, 4, 9, "The Heart-Tree's Fifth Shadow", 7);
-        AddScene(store, 4010, 4, 10, "Karag-Dur, Where Nothing Lives", 6);
-        AddScene(store, 4111, 4, 11, "The Traitor's Errand", 1);
-        AddScene(store, 4112, 4, 11, "The Traitor's Errand", 7);
-        AddScene(store, 4113, 4, 11, "The Traitor's Errand", 6);
-        AddScene(store, 5101, 5, 0, "The Gate of Rust", 2);
-        AddScene(store, 5102, 5, 0, "The Gate of Names", 2);
-        AddScene(store, 5103, 5, 0, "The Gate of Weight", 2);
-        AddScene(store, 5104, 5, 0, "The Gate of Reach", 2);
-        AddScene(store, 5105, 5, 0, "The Gate of Sorrow", 2);
-        AddScene(store, 5106, 5, 0, "The Gate of Teeth", 2);
-        AddScene(store, 5107, 5, 0, "The Gate of Fire", 2);
-        AddScene(store, 5108, 5, 0, "The Gate of Stone", 2);
-        AddScene(store, 5109, 5, 0, "The Fellowship Vault", 2);
-        AddScene(store, 5012, 5, 12, "The Fellowship Vault", 2);
-        AddScene(store, 5013, 5, 13, "The Throne and the Offer", 2);
-        AddScene(store, 6014, 6, 14, "The Road Closing Behind You", 3);
-        AddScene(store, 6015, 6, 15, "Phase One: The Herald", 3);
-        AddScene(store, 6016, 6, 16, "Phase Two: The Contract", 3);
-        AddScene(store, 6017, 6, 17, "Phase Three: The Ash", 3);
-    }
-
-    private static void AddScene(
-        InMemoryGameDataStore store, int id, int act, int chapter, string title, int locationId)
-    {
-        var location = store.Locations.Single(location => location.Id == locationId);
-        store.StoryScenes.Add(new StoryScene
-        {
-            Id = id,
-            Act = act,
-            Chapter = chapter,
-            Title = title,
-            LocationId = locationId,
-            BackgroundImage = location.BackgroundImage
-        });
-    }
 }
