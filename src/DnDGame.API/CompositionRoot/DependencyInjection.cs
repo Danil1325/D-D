@@ -4,8 +4,9 @@
 //   - AddCardBattleServices()      -> Card-battle feature components (Persoana 2, branch catalina).
 //   - AddBattleTurnSystemServices()-> Battle/Turn system integration surface (Persoana 1, branch battle_models).
 //   - AddMockData()                -> In-memory store + Mock* repositories for the mock-data phase.
-//
-// Program.cs only calls these three methods; every game-logic registration lives
+//   - AddScenarioServices()        -> Interactive scenario engine (Persoana 3).
+
+// Program.cs only calls these four methods; every game-logic registration lives
 // here. The container stays lazy (no ValidateOnBuild), so registrations whose
 // dependency graph is not completed by Persoana 1 yet still let the app boot — they
 // throw only if someone actually resolves them. Each such gap is marked as a
@@ -29,6 +30,7 @@ using DnDGame.Domain.Engine.Dice;
 using DnDGame.Domain.Engine.EnemyActions;
 using DnDGame.Domain.Engine.Initiative;
 using DnDGame.Domain.Engine.SavingThrows;
+using DnDGame.Domain.Engine.Scenario;
 using DnDGame.Domain.Engine.Turn;
 using DnDGame.Domain.Entities.Accounts;
 using DnDGame.MockData;
@@ -243,6 +245,16 @@ public static class DependencyInjection
         // BattleService depends on Domain.Engine.Battle.IBattleEngine; the engine
         // set it needs is registered in AddBattleTurnSystemServices, so it resolves.
         services.AddScoped<IBattleService, BattleService>();
+        return services;
+    }
+
+    /// <summary>
+    /// Registers the interactive scenario engine (Persoana 3). The engine is a
+    /// stateless state machine and is registered as a singleton.
+    /// </summary>
+    public static IServiceCollection AddScenarioServices(this IServiceCollection services)
+    {
+        services.AddSingleton<IScenarioEngine, ScenarioEngine>();
         return services;
     }
 }

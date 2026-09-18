@@ -116,6 +116,7 @@ builder.Services.AddSwaggerGen(options =>
 builder.Services.AddCardBattleServices();
 builder.Services.AddBattleTurnSystemServices();
 builder.Services.AddMockData();
+builder.Services.AddScenarioServices();
 
 var app = builder.Build();
 
