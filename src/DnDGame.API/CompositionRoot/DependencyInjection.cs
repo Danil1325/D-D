@@ -262,6 +262,7 @@ public static class DependencyInjection
         services.AddSingleton<IScenarioEngine, ScenarioEngine>();
         services.AddScoped<IQuestService, QuestService>();
         services.AddScoped<IScenarioService, ScenarioService>();
+        services.AddScoped<ILocationProgressionService, LocationProgressionService>();
         services.AddScoped<IProgressionService, ProgressionService>();
         return services;
     }
