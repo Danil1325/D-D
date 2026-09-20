@@ -31,4 +31,11 @@ public class LocationsController : ControllerBase
         var result = await _locationProgressionService.GetLocationDetailsAsync(locationId);
         return Ok(result);
     }
+
+    [HttpPost("travel")]
+    public async Task<ActionResult<TravelToLocationResultDto>> Travel([FromBody] TravelToLocationRequestDto request)
+    {
+        var result = await _locationProgressionService.TravelToLocationAsync(request);
+        return Ok(result);
+    }
 }

@@ -9,4 +9,5 @@ public interface ILocationProgressionService
 {
     Task<IReadOnlyList<LocationSummaryDto>> GetAllLocationsAsync();
     Task<LocationDetailsDto> GetLocationDetailsAsync(int locationId);
+    Task<TravelToLocationResultDto> TravelToLocationAsync(TravelToLocationRequestDto request);
 }
