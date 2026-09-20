@@ -120,6 +120,7 @@ public class ScenarioService : IScenarioService
             progress.CompanionLoyalty.Clear();
             progress.QuestProgress.Clear();
             progress.StoryFlags.Clear();
+            progress.UnlockedLocationIds.Clear();
         }
 
         var scenes = await _sceneRepository.GetAllAsync();

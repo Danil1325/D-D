@@ -18,4 +18,5 @@ public class ScenarioProgress : BaseEntity
     public Dictionary<int, int> CompanionLoyalty { get; set; } = new();
     public Dictionary<int, int> QuestProgress { get; set; } = new();
     public Dictionary<string, bool> StoryFlags { get; set; } = new();
+    public HashSet<int> UnlockedLocationIds { get; set; } = new();
 }

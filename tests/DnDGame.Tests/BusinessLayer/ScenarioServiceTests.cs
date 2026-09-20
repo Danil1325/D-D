@@ -64,7 +64,9 @@ public class ScenarioServiceTests
 
         Assert.Equal(EntrySceneId, result.CurrentSceneId);
         Assert.False(result.IsCompleted);
+        Assert.Empty(result.NewLocationIds);
         Assert.Single(scenario.Store.ScenarioProgresses);
+        Assert.Empty(scenario.Store.ScenarioProgresses.Single().UnlockedLocationIds);
         Assert.Single(scenario.Store.GameSessions);
     }
 
@@ -92,8 +94,10 @@ public class ScenarioServiceTests
         progress.Corruption = 7;
         progress.WarScore = 3;
         progress.StoryFlags["some_flag"] = true;
+        progress.UnlockedLocationIds.Add(4);
 
         var result = await scenario.Service.StartAsync(PlayerId);
+        progress = scenario.Store.ScenarioProgresses.Single();
 
         Assert.Equal(EntrySceneId, result.CurrentSceneId);
         Assert.False(result.IsCompleted);
@@ -101,6 +105,8 @@ public class ScenarioServiceTests
         Assert.Equal(0, result.Corruption);
         Assert.Equal(0, result.WarScore);
         Assert.Empty(result.StoryFlags);
+        Assert.Empty(result.NewLocationIds);
+        Assert.Empty(progress.UnlockedLocationIds);
     }
 
     [Fact]
