@@ -413,6 +413,88 @@ public class LocationProgressionServiceTests
         Assert.Equal(ErrorCodes.NotFound, exception.ErrorCode);
     }
 
+    [Fact]
+    public async Task GetPlayerLocationStatuses_ValidPlayer_ReturnsCatalogLocations()
+    {
+        var service = CreateService(CreateRouteStore(raceId: 1, currentSceneId: 1002));
+
+        var statuses = await service.GetPlayerLocationStatusesAsync(PlayerId);
+
+        Assert.Equal(7, statuses.Count);
+        Assert.All(statuses, status =>
+        {
+            Assert.NotEqual(0, status.LocationId);
+            Assert.False(string.IsNullOrWhiteSpace(status.LocationName));
+            Assert.False(string.IsNullOrWhiteSpace(status.Status));
+            Assert.True(status.RecommendedLevel > 0);
+        });
+    }
+
+    [Fact]
+    public async Task GetPlayerLocationStatuses_CurrentLocation_IsDerivedFromCurrentScene()
+    {
+        var service = CreateService(CreateRouteStore(raceId: 1, currentSceneId: 1002));
+
+        var statuses = await service.GetPlayerLocationStatusesAsync(PlayerId);
+
+        var current = Assert.Single(statuses, status => status.IsCurrent);
+        Assert.Equal(HerosOverlookLocationId, current.LocationId);
+        Assert.Equal("current", current.Status);
+    }
+
+    [Fact]
+    public async Task GetPlayerLocationStatuses_ReachableLocations_ComeFromEngineApprovedChoices()
+    {
+        var service = CreateService(CreateRouteStore(raceId: 1, currentSceneId: 4100));
+
+        var statuses = await service.GetPlayerLocationStatusesAsync(PlayerId);
+
+        var reachable = FindStatus(statuses, AshtoniaLocationId);
+        Assert.False(reachable.IsCurrent);
+        Assert.False(reachable.IsCompleted);
+        Assert.Equal("reachable", reachable.Status);
+    }
+
+    [Fact]
+    public async Task GetPlayerLocationStatuses_RepeatedRouteLocation_CompletesOnlyAfterAllRouteOccurrences()
+    {
+        var postRaceService = CreateService(CreateRouteStore(raceId: 1, currentSceneId: 2003));
+        var oakheavenService = CreateService(CreateRouteStore(raceId: 1, currentSceneId: 3006));
+        var repeatedFutureService = CreateService(CreateRouteStore(raceId: 3, currentSceneId: 2003));
+
+        var postRaceStatuses = await postRaceService.GetPlayerLocationStatusesAsync(PlayerId);
+        var oakheavenStatuses = await oakheavenService.GetPlayerLocationStatusesAsync(PlayerId);
+        var repeatedFutureStatuses = await repeatedFutureService.GetPlayerLocationStatusesAsync(PlayerId);
+
+        Assert.False(FindStatus(postRaceStatuses, MisthavenPortLocationId).IsCompleted);
+        Assert.True(FindStatus(oakheavenStatuses, MisthavenPortLocationId).IsCompleted);
+        Assert.False(FindStatus(repeatedFutureStatuses, AshtoniaLocationId).IsCompleted);
+    }
+
+    [Fact]
+    public async Task GetPlayerLocationStatuses_OpeningScene_DoesNotInventCompletedOrUnlockedLocations()
+    {
+        var service = CreateService(CreateRouteStore(raceId: 1, currentSceneId: 1002));
+
+        var statuses = await service.GetPlayerLocationStatusesAsync(PlayerId);
+
+        Assert.DoesNotContain(statuses, status => status.IsCompleted);
+        Assert.Equal("current", FindStatus(statuses, HerosOverlookLocationId).Status);
+        Assert.Equal("reachable", FindStatus(statuses, MisthavenPortLocationId).Status);
+        Assert.Equal("upcoming", FindStatus(statuses, OakheavenLocationId).Status);
+        Assert.Equal("upcoming", FindStatus(statuses, DarkstormKeepLocationId).Status);
+    }
+
+    [Fact]
+    public async Task GetPlayerLocationStatuses_InvalidPlayer_FailsWithNotFound()
+    {
+        var service = CreateService(MockDataBootstrapper.CreateSeededStore());
+
+        var exception = await Assert.ThrowsAsync<DomainException>(() => service.GetPlayerLocationStatusesAsync(999));
+
+        Assert.Equal(ErrorCodes.NotFound, exception.ErrorCode);
+    }
+
     private static ILocationProgressionService CreateSeededService()
     {
         var store = MockDataBootstrapper.CreateSeededStore();
@@ -588,6 +670,11 @@ public class LocationProgressionServiceTests
                 Assert.Equal("upcoming", step.Status);
             }
         }
+    }
+
+    private static LocationStatusDto FindStatus(IReadOnlyList<LocationStatusDto> statuses, int locationId)
+    {
+        return Assert.Single(statuses, status => status.LocationId == locationId);
     }
 
     private static IReadOnlyList<string> ResolveLocationNames(IReadOnlyList<int> locationIds)

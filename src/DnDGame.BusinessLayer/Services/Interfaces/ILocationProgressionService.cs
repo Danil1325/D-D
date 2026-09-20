@@ -11,4 +11,5 @@ public interface ILocationProgressionService
     Task<LocationDetailsDto> GetLocationDetailsAsync(int locationId);
     Task<TravelToLocationResultDto> TravelToLocationAsync(TravelToLocationRequestDto request);
     Task<IReadOnlyList<LocationRouteStepDto>> GetPlayerRouteAsync(int playerId);
+    Task<IReadOnlyList<LocationStatusDto>> GetPlayerLocationStatusesAsync(int playerId);
 }

@@ -19,6 +19,7 @@ public class LocationProgressionService : ILocationProgressionService
 {
     private const string CompletedStatus = "completed";
     private const string CurrentStatus = "current";
+    private const string ReachableStatus = "reachable";
     private const string UpcomingStatus = "upcoming";
     private const int OpeningOrder = 1;
     private const int RaceSpecificOrder = 2;
@@ -188,6 +189,50 @@ public class LocationProgressionService : ILocationProgressionService
             .ToList();
     }
 
+    public async Task<IReadOnlyList<LocationStatusDto>> GetPlayerLocationStatusesAsync(int playerId)
+    {
+        var validation = RequestValidationHelpers.RequirePositiveId(playerId, nameof(playerId));
+        if (!validation.IsValid)
+        {
+            throw new DomainException(ErrorCodes.ValidationError, string.Join(" ", validation.Errors));
+        }
+
+        var currentScene = await _scenarioService.GetCurrentAsync(playerId);
+        var scenes = await _sceneRepository.GetAllAsync();
+        var route = await GetPlayerRouteAsync(playerId);
+        var routeStepsByLocationId = route
+            .GroupBy(step => step.LocationId)
+            .ToDictionary(group => group.Key, group => group.ToList());
+        var reachableLocationIds = ResolveReachableLocationIds(currentScene, scenes);
+        var locations = await _locationRepository.GetAllAsync();
+
+        return locations
+            .Select(location =>
+            {
+                var isCurrent = location.Id == currentScene.LocationId;
+                var isCompleted = routeStepsByLocationId.TryGetValue(location.Id, out var routeSteps)
+                    && routeSteps.All(step => step.IsCompleted);
+                var status = isCurrent
+                    ? CurrentStatus
+                    : reachableLocationIds.Contains(location.Id)
+                        ? ReachableStatus
+                        : isCompleted
+                            ? CompletedStatus
+                            : UpcomingStatus;
+
+                return new LocationStatusDto
+                {
+                    LocationId = location.Id,
+                    LocationName = location.Name,
+                    Status = status,
+                    RecommendedLevel = location.RecommendedMinimumLevel,
+                    IsCurrent = isCurrent,
+                    IsCompleted = isCompleted
+                };
+            })
+            .ToList();
+    }
+
     private async Task<PlayerCharacter> RequireCharacterAsync(int playerId)
     {
         var characters = await _characterRepository.GetAllAsync();
@@ -302,6 +347,25 @@ public class LocationProgressionService : ILocationProgressionService
     private static RoutePosition CurrentRouteStep(int order) => new(order, order - 1);
 
     private static RoutePosition BetweenRouteSteps(int completedThroughOrder) => new(null, completedThroughOrder);
+
+    private static IReadOnlySet<int> ResolveReachableLocationIds(
+        StorySceneDto currentScene,
+        IReadOnlyCollection<StoryScene> scenes)
+    {
+        var reachableLocationIds = new HashSet<int>();
+
+        foreach (var choice in currentScene.Choices.Where(choice => choice.NextSceneId.HasValue))
+        {
+            var destinationScene = scenes.FirstOrDefault(scene => scene.Id == choice.NextSceneId.GetValueOrDefault())
+                ?? throw new DomainException(
+                    ErrorCodes.NotFound,
+                    $"Scene {choice.NextSceneId.GetValueOrDefault()} was not found in the catalog.");
+
+            reachableLocationIds.Add(destinationScene.LocationId);
+        }
+
+        return reachableLocationIds;
+    }
 
     private static int OrderOfFragmentLocation(int locationId) => locationId switch
     {

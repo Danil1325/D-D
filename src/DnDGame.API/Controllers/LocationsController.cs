@@ -45,4 +45,11 @@ public class LocationsController : ControllerBase
         var result = await _locationProgressionService.GetPlayerRouteAsync(playerId);
         return Ok(result);
     }
+
+    [HttpGet("player/{playerId:int}")]
+    public async Task<ActionResult<IReadOnlyList<LocationStatusDto>>> GetPlayerLocations(int playerId)
+    {
+        var result = await _locationProgressionService.GetPlayerLocationStatusesAsync(playerId);
+        return Ok(result);
+    }
 }
