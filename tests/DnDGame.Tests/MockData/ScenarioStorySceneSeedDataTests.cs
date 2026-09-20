@@ -43,6 +43,30 @@ public class ScenarioStorySceneSeedDataTests
     }
 
     [Fact]
+    public void RacialOpeningChoices_RequireTheExpectedRaceForEachRoute()
+    {
+        var scene = Assert.Single(CreateStore().StoryScenes, scene => scene.Id == 1205);
+        var expectedRaceByTarget = new Dictionary<int, int>
+        {
+            [1201] = 2,
+            [1202] = 3,
+            [1203] = 1,
+            [1204] = 4
+        };
+
+        var routeChoices = scene.Choices
+            .Where(choice => choice.NextSceneId is int target && expectedRaceByTarget.ContainsKey(target))
+            .ToList();
+
+        Assert.Equal(expectedRaceByTarget.Count, routeChoices.Count);
+        foreach (var choice in routeChoices)
+        {
+            var requirement = Assert.Single(choice.Requirements);
+            Assert.Equal(expectedRaceByTarget[choice.NextSceneId!.Value], requirement.RaceId);
+        }
+    }
+
+    [Fact]
     public void EveryNonFinalScene_CanAdvanceAndEveryForkTargetsTheSameChapterOrLater()
     {
         var store = CreateStore();

@@ -105,10 +105,10 @@ internal partial class ScenarioStorySceneSeedData
         var s1205 = Scene(1205, 1, 2, "The Road That Is Yours", 4);
         Say(s1205, 71);
         Say(s1205, 72);
-        Choice(s1205, 74, 1201);
-        Choice(s1205, 85, 1202);
-        Choice(s1205, 96, 1203);
-        Choice(s1205, 107, 1204);
+        Choice(s1205, 74, 1201, raceId: 2);
+        Choice(s1205, 85, 1202, raceId: 3);
+        Choice(s1205, 96, 1203, raceId: 1);
+        Choice(s1205, 107, 1204, raceId: 4);
 
         var s1201 = Scene(1201, 1, 2, "The Wood That Remembers", 7);
         Say(s1201, 75);
@@ -655,16 +655,23 @@ Choice(s6017, 366, 6101);
         });
     }
 
-    private void Choice(StoryScene scene, int textParaIndex, int nextSceneId)
+    private void Choice(StoryScene scene, int textParaIndex, int nextSceneId, int? raceId = null)
     {
         // Every authored choice keeps its bracketed guidance verbatim in the visible text;
-        // Requirements/Consequences are intentionally left to the game engine.
-        scene.Choices.Add(new StoryChoice
+        // requirements stay data-only so the game engine remains the source of enforcement.
+        var choice = new StoryChoice
         {
             Id = _choiceId++,
             Text = P[textParaIndex],
             NextSceneId = nextSceneId
-        });
+        };
+
+        if (raceId.HasValue)
+        {
+            choice.Requirements.Add(new ChoiceRequirement { RaceId = raceId.Value });
+        }
+
+        scene.Choices.Add(choice);
     }
 
     /// <summary>
