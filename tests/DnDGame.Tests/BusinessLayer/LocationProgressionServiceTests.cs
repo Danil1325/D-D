@@ -25,6 +25,13 @@ public class LocationProgressionServiceTests
     private const int SameLocationSceneId = 150;
     private const int ReachableSceneId = 200;
     private const int RaceGatedSceneId = 300;
+    private const int HerosOverlookLocationId = 3;
+    private const int AshtoniaLocationId = 1;
+    private const int DarkstormKeepLocationId = 2;
+    private const int MisthavenPortLocationId = 4;
+    private const int OakheavenLocationId = 5;
+    private const int TheBonePeaksLocationId = 6;
+    private const int WhisperingWoodsLocationId = 7;
 
     [Fact]
     public async Task GetAllLocations_ReturnsAllSeededLocations()
@@ -177,6 +184,235 @@ public class LocationProgressionServiceTests
         Assert.Equal(CurrentSceneId, store.ScenarioProgresses.Single().CurrentSceneId);
     }
 
+    [Fact]
+    public async Task GetPlayerRoute_Human_ReturnsAuthoredRoute()
+    {
+        var service = CreateService(CreateRouteStore(raceId: 1));
+
+        var route = await service.GetPlayerRouteAsync(PlayerId);
+
+        AssertRoute(route, new[]
+        {
+            HerosOverlookLocationId,
+            MisthavenPortLocationId,
+            MisthavenPortLocationId,
+            OakheavenLocationId,
+            AshtoniaLocationId,
+            WhisperingWoodsLocationId,
+            TheBonePeaksLocationId,
+            DarkstormKeepLocationId,
+            HerosOverlookLocationId
+        });
+    }
+
+    [Fact]
+    public async Task GetPlayerRoute_Elf_ReturnsAuthoredRoute()
+    {
+        var service = CreateService(CreateRouteStore(raceId: 2));
+
+        var route = await service.GetPlayerRouteAsync(PlayerId);
+
+        AssertRoute(route, new[]
+        {
+            HerosOverlookLocationId,
+            WhisperingWoodsLocationId,
+            MisthavenPortLocationId,
+            OakheavenLocationId,
+            AshtoniaLocationId,
+            WhisperingWoodsLocationId,
+            TheBonePeaksLocationId,
+            DarkstormKeepLocationId,
+            HerosOverlookLocationId
+        });
+    }
+
+    [Fact]
+    public async Task GetPlayerRoute_Orc_ReturnsAuthoredRoute()
+    {
+        var service = CreateService(CreateRouteStore(raceId: 3));
+
+        var route = await service.GetPlayerRouteAsync(PlayerId);
+
+        AssertRoute(route, new[]
+        {
+            HerosOverlookLocationId,
+            AshtoniaLocationId,
+            MisthavenPortLocationId,
+            OakheavenLocationId,
+            AshtoniaLocationId,
+            WhisperingWoodsLocationId,
+            TheBonePeaksLocationId,
+            DarkstormKeepLocationId,
+            HerosOverlookLocationId
+        });
+    }
+
+    [Fact]
+    public async Task GetPlayerRoute_Dwarf_ReturnsAuthoredRoute()
+    {
+        var service = CreateService(CreateRouteStore(raceId: 4));
+
+        var route = await service.GetPlayerRouteAsync(PlayerId);
+
+        AssertRoute(route, new[]
+        {
+            HerosOverlookLocationId,
+            TheBonePeaksLocationId,
+            MisthavenPortLocationId,
+            OakheavenLocationId,
+            AshtoniaLocationId,
+            WhisperingWoodsLocationId,
+            TheBonePeaksLocationId,
+            DarkstormKeepLocationId,
+            HerosOverlookLocationId
+        });
+    }
+
+    [Fact]
+    public async Task GetPlayerRoute_HumanRaceSpecificMisthaven_IsOrderTwo()
+    {
+        var service = CreateService(CreateRouteStore(raceId: 1, currentSceneId: 1203));
+
+        var route = await service.GetPlayerRouteAsync(PlayerId);
+
+        AssertCurrentStep(route, order: 2, locationId: MisthavenPortLocationId);
+    }
+
+    [Fact]
+    public async Task GetPlayerRoute_HumanPostConvergenceMisthaven_IsOrderThree()
+    {
+        var service = CreateService(CreateRouteStore(raceId: 1, currentSceneId: 2003));
+
+        var route = await service.GetPlayerRouteAsync(PlayerId);
+
+        AssertCurrentStep(route, order: 3, locationId: MisthavenPortLocationId);
+    }
+
+    [Fact]
+    public async Task GetPlayerRoute_RaceBranchInterstitial_DoesNotMarkPostRaceMisthavenProgress()
+    {
+        var service = CreateService(CreateRouteStore(raceId: 1, currentSceneId: 1205));
+
+        var route = await service.GetPlayerRouteAsync(PlayerId);
+
+        AssertRouteProgress(route, currentOrder: null, completedThroughOrder: 1);
+        Assert.Equal("upcoming", Assert.Single(route, step => step.Order == 2).Status);
+        Assert.Equal("upcoming", Assert.Single(route, step => step.Order == 3).Status);
+    }
+
+    [Fact]
+    public async Task GetPlayerRoute_ActFourGatheringInterstitial_DoesNotRegressBelowOakheaven()
+    {
+        var service = CreateService(CreateRouteStore(raceId: 1, currentSceneId: 4100));
+
+        var route = await service.GetPlayerRouteAsync(PlayerId);
+
+        AssertRouteProgress(route, currentOrder: null, completedThroughOrder: 4);
+        Assert.Equal("completed", Assert.Single(route, step => step.Order == 4).Status);
+        Assert.Equal("upcoming", Assert.Single(route, step => step.Order == 5).Status);
+    }
+
+    [Theory]
+    [InlineData(2, 4009, 6, WhisperingWoodsLocationId)]
+    [InlineData(3, 4008, 5, AshtoniaLocationId)]
+    [InlineData(4, 4010, 7, TheBonePeaksLocationId)]
+    public async Task GetPlayerRoute_RepeatedRaceLocationFragmentScenes_ResolveToFragmentStep(
+        int raceId,
+        int currentSceneId,
+        int expectedOrder,
+        int expectedLocationId)
+    {
+        var service = CreateService(CreateRouteStore(raceId, currentSceneId));
+
+        var route = await service.GetPlayerRouteAsync(PlayerId);
+
+        AssertCurrentStep(route, expectedOrder, expectedLocationId);
+    }
+
+    [Fact]
+    public async Task GetPlayerRoute_AuthoredProgression_IsMonotonicThroughInterstitials()
+    {
+        var progression = new (int SceneId, int? CurrentOrder, int CompletedThroughOrder)[]
+        {
+            (900, 1, 0),
+            (1205, null, 1),
+            (1203, 2, 1),
+            (2003, 3, 2),
+            (3006, 4, 3),
+            (4100, null, 4),
+            (4008, 5, 4)
+        };
+        var previousRouteCursor = 0;
+
+        foreach (var (sceneId, currentOrder, completedThroughOrder) in progression)
+        {
+            var service = CreateService(CreateRouteStore(raceId: 1, currentSceneId: sceneId));
+
+            var route = await service.GetPlayerRouteAsync(PlayerId);
+
+            AssertRouteProgress(route, currentOrder, completedThroughOrder);
+            var routeCursor = currentOrder ?? completedThroughOrder;
+            Assert.True(routeCursor >= previousRouteCursor);
+            previousRouteCursor = routeCursor;
+        }
+    }
+
+    [Fact]
+    public async Task GetPlayerRoute_HerosOverlookOpeningAndFinalReturn_AreDistinctSteps()
+    {
+        var openingService = CreateService(CreateRouteStore(raceId: 1, currentSceneId: 900));
+        var finalService = CreateService(CreateRouteStore(raceId: 1, currentSceneId: 6014));
+
+        var openingRoute = await openingService.GetPlayerRouteAsync(PlayerId);
+        var finalRoute = await finalService.GetPlayerRouteAsync(PlayerId);
+
+        AssertCurrentStep(openingRoute, order: 1, locationId: HerosOverlookLocationId);
+        AssertCurrentStep(finalRoute, order: 9, locationId: HerosOverlookLocationId);
+    }
+
+    [Theory]
+    [InlineData(6102, 8, DarkstormKeepLocationId)]
+    [InlineData(6104, 7, TheBonePeaksLocationId)]
+    public async Task GetPlayerRoute_EndingScenesOutsideHerosOverlook_AreNotFinalReturn(
+        int currentSceneId,
+        int expectedOrder,
+        int expectedLocationId)
+    {
+        var service = CreateService(CreateRouteStore(raceId: 4, currentSceneId: currentSceneId));
+
+        var route = await service.GetPlayerRouteAsync(PlayerId);
+
+        AssertCurrentStep(route, expectedOrder, expectedLocationId);
+        Assert.DoesNotContain(route, step => step.Order == 9 && step.IsCurrent);
+    }
+
+    [Fact]
+    public async Task GetPlayerRoute_CurrentStep_IsDerivedFromCurrentScenarioScene()
+    {
+        var service = CreateService(CreateRouteStore(raceId: 1, currentSceneId: 3006));
+
+        var route = await service.GetPlayerRouteAsync(PlayerId);
+
+        var current = Assert.Single(route, step => step.IsCurrent);
+        Assert.Equal(4, current.Order);
+        Assert.Equal(OakheavenLocationId, current.LocationId);
+        Assert.Equal("current", current.Status);
+        Assert.True(route.Where(step => step.Order < current.Order).All(step => step.IsCompleted));
+        Assert.True(route.Where(step => step.Order > current.Order).All(step => !step.IsCompleted));
+        Assert.All(route.Where(step => step.Order < current.Order), step => Assert.Equal("completed", step.Status));
+        Assert.All(route.Where(step => step.Order > current.Order), step => Assert.Equal("upcoming", step.Status));
+    }
+
+    [Fact]
+    public async Task GetPlayerRoute_InvalidPlayer_FailsWithNotFound()
+    {
+        var service = CreateService(MockDataBootstrapper.CreateSeededStore());
+
+        var exception = await Assert.ThrowsAsync<DomainException>(() => service.GetPlayerRouteAsync(999));
+
+        Assert.Equal(ErrorCodes.NotFound, exception.ErrorCode);
+    }
+
     private static ILocationProgressionService CreateSeededService()
     {
         var store = MockDataBootstrapper.CreateSeededStore();
@@ -187,11 +423,14 @@ public class LocationProgressionServiceTests
     {
         var locationRepository = new MockLocationRepository(store);
         var storySceneRepository = new MockStorySceneRepository(store);
+        var characterRepository = new MockCharacterRepository(store);
+        var gameSessionRepository = new MockGameSessionRepository(store);
+        var scenarioProgressRepository = new MockScenarioProgressRepository(store);
         var scenarioService = new ScenarioService(
             new ScenarioEngine(),
-            new MockCharacterRepository(store),
-            new MockGameSessionRepository(store),
-            new MockScenarioProgressRepository(store),
+            characterRepository,
+            gameSessionRepository,
+            scenarioProgressRepository,
             storySceneRepository,
             new MockQuestRepository(store),
             new MockPlayerQuestRepository(store),
@@ -200,7 +439,10 @@ public class LocationProgressionServiceTests
         return new LocationProgressionService(
             locationRepository,
             scenarioService,
-            storySceneRepository);
+            storySceneRepository,
+            characterRepository,
+            gameSessionRepository,
+            scenarioProgressRepository);
     }
 
     private static InMemoryGameDataStore CreateTravelStore()
@@ -259,6 +501,108 @@ public class LocationProgressionServiceTests
         });
 
         return store;
+    }
+
+    private static InMemoryGameDataStore CreateRouteStore(int raceId, int currentSceneId = 900)
+    {
+        var store = MockDataBootstrapper.CreateSeededStore();
+
+        store.Characters.Add(new PlayerCharacter
+        {
+            Id = CharacterId,
+            OwnerId = PlayerId.ToString(),
+            Name = "Route Tester",
+            RaceId = raceId,
+            ClassId = 1,
+            Level = 10
+        });
+
+        store.GameSessions.Add(new GameSession
+        {
+            Id = SessionId,
+            CharacterId = CharacterId,
+            AdventureId = 1,
+            Status = GameSessionStatus.InProgress,
+            StartedAt = DateTime.UtcNow
+        });
+
+        store.ScenarioProgresses.Add(new ScenarioProgress
+        {
+            Id = 1,
+            GameSessionId = SessionId,
+            CurrentSceneId = currentSceneId
+        });
+
+        return store;
+    }
+
+    private static void AssertRoute(IReadOnlyList<LocationRouteStepDto> route, IReadOnlyList<int> expectedLocationIds)
+    {
+        Assert.Equal(expectedLocationIds.Count, route.Count);
+        Assert.Equal(Enumerable.Range(1, expectedLocationIds.Count), route.Select(step => step.Order));
+        Assert.Equal(expectedLocationIds, route.Select(step => step.LocationId).ToList());
+        Assert.Equal(ResolveLocationNames(expectedLocationIds), route.Select(step => step.LocationName).ToList());
+        Assert.All(route, step => Assert.True(step.RecommendedLevel > 0));
+    }
+
+    private static void AssertCurrentStep(IReadOnlyList<LocationRouteStepDto> route, int order, int locationId)
+    {
+        var current = Assert.Single(route, step => step.IsCurrent);
+        Assert.Equal(order, current.Order);
+        Assert.Equal(locationId, current.LocationId);
+        Assert.Equal("current", current.Status);
+    }
+
+    private static void AssertRouteProgress(
+        IReadOnlyList<LocationRouteStepDto> route,
+        int? currentOrder,
+        int completedThroughOrder)
+    {
+        if (currentOrder is int order)
+        {
+            var current = Assert.Single(route, step => step.IsCurrent);
+            Assert.Equal(order, current.Order);
+            Assert.Equal("current", current.Status);
+            Assert.False(current.IsCompleted);
+        }
+        else
+        {
+            Assert.DoesNotContain(route, step => step.IsCurrent);
+        }
+
+        foreach (var step in route)
+        {
+            if (step.Order <= completedThroughOrder)
+            {
+                Assert.True(step.IsCompleted);
+                Assert.Equal("completed", step.Status);
+            }
+            else if (currentOrder == step.Order)
+            {
+                Assert.False(step.IsCompleted);
+                Assert.Equal("current", step.Status);
+            }
+            else
+            {
+                Assert.False(step.IsCompleted);
+                Assert.Equal("upcoming", step.Status);
+            }
+        }
+    }
+
+    private static IReadOnlyList<string> ResolveLocationNames(IReadOnlyList<int> locationIds)
+    {
+        return locationIds.Select(id => id switch
+        {
+            AshtoniaLocationId => "Ashtonia",
+            DarkstormKeepLocationId => "Darkstorm Keep",
+            HerosOverlookLocationId => "Hero's Overlook",
+            MisthavenPortLocationId => "Misthaven Port",
+            OakheavenLocationId => "Oakheaven",
+            TheBonePeaksLocationId => "The Bone Peaks",
+            WhisperingWoodsLocationId => "Whispering Woods",
+            _ => throw new InvalidOperationException($"Unexpected location {id}.")
+        }).ToList();
     }
 
     private static Location Location(int id, string name)
