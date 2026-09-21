@@ -499,6 +499,11 @@ public sealed class ScenarioEngine : IScenarioEngine
         {
             progress.StoryFlags[flag] = value;
         }
+
+        foreach (var locationId in consequence.NewLocationIds.Distinct())
+        {
+            progress.UnlockedLocationIds.Add(locationId);
+        }
     }
 
     private static int ReadAttribute(AttributeType stat, PlayerCharacter character)

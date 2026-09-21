@@ -161,6 +161,7 @@ public class QuestServiceTests
         var completion = await service.CompleteQuestAsync(1, firstMainQuestId);
 
         Assert.Equal(100, completion.ExperienceGained);
+        Assert.Empty(completion.NewLocationIds);
         Assert.Equal(100, player.CurrentXp);
 
         var exception = await Assert.ThrowsAsync<DomainException>(
@@ -202,6 +203,60 @@ public class QuestServiceTests
         Assert.True(progress.StoryFlags["side_complete"]);
     }
 
+    [Fact]
+    public async Task CompleteQuest_FirstExplicitLocationUnlock_PersistsAndReturnsIt()
+    {
+        var (service, store, _, _, _) = CreateScenario();
+        var quest = AddSyntheticQuest(store, 510, newLocationIds: new[] { 4 });
+
+        await service.StartQuestAsync(1, quest.Id);
+        var completion = await service.CompleteQuestAsync(1, quest.Id);
+
+        Assert.Equal(new[] { 4 }, completion.NewLocationIds);
+        Assert.Contains(4, Assert.Single(store.ScenarioProgresses).UnlockedLocationIds);
+    }
+
+    [Fact]
+    public async Task CompleteQuest_DuplicateLocationUnlocks_ReturnsLocationOnce()
+    {
+        var (service, store, _, _, _) = CreateScenario();
+        var quest = AddSyntheticQuest(store, 511, newLocationIds: new[] { 4, 4 });
+
+        await service.StartQuestAsync(1, quest.Id);
+        var completion = await service.CompleteQuestAsync(1, quest.Id);
+
+        Assert.Equal(new[] { 4 }, completion.NewLocationIds);
+    }
+
+    [Fact]
+    public async Task CompleteQuest_AlreadyUnlockedLocation_IsNotReturnedAgain()
+    {
+        var (service, store, _, _, _) = CreateScenario();
+        var quest = AddSyntheticQuest(store, 512, newLocationIds: new[] { 4 });
+        store.ScenarioProgresses.Add(new ScenarioProgress { GameSessionId = 1, UnlockedLocationIds = new HashSet<int> { 4 } });
+
+        await service.StartQuestAsync(1, quest.Id);
+        var completion = await service.CompleteQuestAsync(1, quest.Id);
+
+        Assert.Empty(completion.NewLocationIds);
+        Assert.Contains(4, Assert.Single(store.ScenarioProgresses).UnlockedLocationIds);
+    }
+
+    [Fact]
+    public async Task CompleteQuest_MixedOldAndNewLocationUnlocks_ReturnsOnlyNewLocations()
+    {
+        var (service, store, _, _, _) = CreateScenario();
+        var quest = AddSyntheticQuest(store, 513, newLocationIds: new[] { 4, 7 });
+        store.ScenarioProgresses.Add(new ScenarioProgress { GameSessionId = 1, UnlockedLocationIds = new HashSet<int> { 4 } });
+
+        await service.StartQuestAsync(1, quest.Id);
+        var completion = await service.CompleteQuestAsync(1, quest.Id);
+
+        Assert.Equal(new[] { 7 }, completion.NewLocationIds);
+        Assert.Contains(4, Assert.Single(store.ScenarioProgresses).UnlockedLocationIds);
+        Assert.Contains(7, Assert.Single(store.ScenarioProgresses).UnlockedLocationIds);
+    }
+
     // --- Objectives ---
 
     [Fact]
@@ -216,9 +271,45 @@ public class QuestServiceTests
         Assert.True(result.ObjectiveCompleted);
         Assert.Equal(1, result.NextObjectiveIndex);
         Assert.Null(result.Completed);
+        Assert.Empty(result.NewLocationIds);
 
         var active = await service.GetActiveQuestsAsync(1);
         Assert.Equal(102, Assert.Single(active).CurrentObjectiveId);
+    }
+
+    [Fact]
+    public async Task UpdateObjective_ObjectiveRewardLocationUnlock_PersistsAndReturnsIt()
+    {
+        var (service, store, _, _, _) = CreateScenario();
+        var quest = AddSyntheticQuest(store, 514);
+        AddObjective(
+            quest,
+            objectiveId: 51401,
+            newLocationIds: new[] { 4, 4 });
+        AddObjective(quest, objectiveId: 51402);
+
+        await service.StartQuestAsync(1, quest.Id);
+        var result = await service.UpdateObjectiveAsync(1, quest.Id, 51401);
+
+        Assert.Equal(new[] { 4 }, result.NewLocationIds);
+        Assert.Contains(4, Assert.Single(store.ScenarioProgresses).UnlockedLocationIds);
+        Assert.Null(result.Completed);
+    }
+
+    [Fact]
+    public async Task UpdateObjective_ObjectiveRewardAlreadyUnlockedLocation_IsNotReturnedAgain()
+    {
+        var (service, store, _, _, _) = CreateScenario();
+        var quest = AddSyntheticQuest(store, 515);
+        AddObjective(quest, objectiveId: 51501, newLocationIds: new[] { 4 });
+        AddObjective(quest, objectiveId: 51502);
+        store.ScenarioProgresses.Add(new ScenarioProgress { GameSessionId = 1, UnlockedLocationIds = new HashSet<int> { 4 } });
+
+        await service.StartQuestAsync(1, quest.Id);
+        var result = await service.UpdateObjectiveAsync(1, quest.Id, 51501);
+
+        Assert.Empty(result.NewLocationIds);
+        Assert.Contains(4, Assert.Single(store.ScenarioProgresses).UnlockedLocationIds);
     }
 
     [Fact]
@@ -451,7 +542,8 @@ public class QuestServiceTests
         int? locationId = null,
         int experience = 0,
         Dictionary<string, bool>? requiredFlags = null,
-        Dictionary<string, bool>? resultFlags = null)
+        Dictionary<string, bool>? resultFlags = null,
+        IReadOnlyCollection<int>? newLocationIds = null)
     {
         var quest = new Quest
         {
@@ -464,13 +556,41 @@ public class QuestServiceTests
             RecommendedLevel = recommendedLevel,
             RecommendedMaximumLevel = recommendedMaximumLevel,
             LocationId = locationId,
-            Rewards = new List<QuestReward> { new() { Experience = experience } },
+            Rewards = new List<QuestReward>
+            {
+                new()
+                {
+                    Experience = experience,
+                    NewLocationIds = newLocationIds?.ToList() ?? new List<int>()
+                }
+            },
             RequiredFlags = requiredFlags ?? new(),
             ResultFlags = resultFlags ?? new(),
             Objectives = new List<QuestObjective>()
         };
         store.Quests.Add(quest);
         return quest;
+    }
+
+    private static void AddObjective(
+        Quest quest,
+        int objectiveId,
+        IReadOnlyCollection<int>? newLocationIds = null)
+    {
+        quest.Objectives.Add(new QuestObjective
+        {
+            Id = objectiveId,
+            Description = "Synthetic objective",
+            ObjectiveType = ObjectiveType.MakeChoice,
+            RequiredAmount = 1,
+            Rewards = new List<QuestReward>
+            {
+                new()
+                {
+                    NewLocationIds = newLocationIds?.ToList() ?? new List<int>()
+                }
+            }
+        });
     }
 
     private sealed class FixedCurrentPlayerService : ICurrentPlayerService

@@ -173,6 +173,81 @@ public class ScenarioServiceTests
         });
 
         Assert.Equal(choice.NextSceneId, result.CurrentSceneId);
+        Assert.Empty(result.NewLocationIds);
+    }
+
+    [Fact]
+    public async Task SelectChoice_FirstExplicitLocationUnlock_PersistsAndReturnsIt()
+    {
+        var scenario = CreateScenario();
+        var choice = AddEntryChoiceLocationUnlocks(scenario.Store, 4);
+        await scenario.Service.StartAsync(PlayerId);
+
+        var result = await scenario.Service.SelectChoiceAsync(new SelectChoiceRequest
+        {
+            PlayerId = PlayerId,
+            SceneId = EntrySceneId,
+            ChoiceId = choice.Id
+        });
+
+        Assert.Equal(new[] { 4 }, result.NewLocationIds);
+        Assert.Contains(4, scenario.Store.ScenarioProgresses.Single().UnlockedLocationIds);
+    }
+
+    [Fact]
+    public async Task SelectChoice_DuplicateLocationUnlocks_ReturnsLocationOnce()
+    {
+        var scenario = CreateScenario();
+        var choice = AddEntryChoiceLocationUnlocks(scenario.Store, 4, 4);
+        await scenario.Service.StartAsync(PlayerId);
+
+        var result = await scenario.Service.SelectChoiceAsync(new SelectChoiceRequest
+        {
+            PlayerId = PlayerId,
+            SceneId = EntrySceneId,
+            ChoiceId = choice.Id
+        });
+
+        Assert.Equal(new[] { 4 }, result.NewLocationIds);
+    }
+
+    [Fact]
+    public async Task SelectChoice_AlreadyUnlockedLocation_IsNotReturnedAgain()
+    {
+        var scenario = CreateScenario();
+        var choice = AddEntryChoiceLocationUnlocks(scenario.Store, 4);
+        await scenario.Service.StartAsync(PlayerId);
+        scenario.Store.ScenarioProgresses.Single().UnlockedLocationIds.Add(4);
+
+        var result = await scenario.Service.SelectChoiceAsync(new SelectChoiceRequest
+        {
+            PlayerId = PlayerId,
+            SceneId = EntrySceneId,
+            ChoiceId = choice.Id
+        });
+
+        Assert.Empty(result.NewLocationIds);
+        Assert.Contains(4, scenario.Store.ScenarioProgresses.Single().UnlockedLocationIds);
+    }
+
+    [Fact]
+    public async Task SelectChoice_MixedOldAndNewLocationUnlocks_ReturnsOnlyNewLocations()
+    {
+        var scenario = CreateScenario();
+        var choice = AddEntryChoiceLocationUnlocks(scenario.Store, 4, 7);
+        await scenario.Service.StartAsync(PlayerId);
+        scenario.Store.ScenarioProgresses.Single().UnlockedLocationIds.Add(4);
+
+        var result = await scenario.Service.SelectChoiceAsync(new SelectChoiceRequest
+        {
+            PlayerId = PlayerId,
+            SceneId = EntrySceneId,
+            ChoiceId = choice.Id
+        });
+
+        Assert.Equal(new[] { 7 }, result.NewLocationIds);
+        Assert.Contains(4, scenario.Store.ScenarioProgresses.Single().UnlockedLocationIds);
+        Assert.Contains(7, scenario.Store.ScenarioProgresses.Single().UnlockedLocationIds);
     }
 
     [Fact]
@@ -246,5 +321,15 @@ public class ScenarioServiceTests
             new MockQuestRepository(store),
             new MockPlayerQuestRepository(store),
             new MockLocationRepository(store));
+    }
+
+    private static StoryChoice AddEntryChoiceLocationUnlocks(InMemoryGameDataStore store, params int[] locationIds)
+    {
+        var choice = store.StoryScenes.Single(scene => scene.Id == EntrySceneId).Choices.Single();
+        choice.Consequences.Add(new ChoiceConsequence
+        {
+            NewLocationIds = locationIds.ToList()
+        });
+        return choice;
     }
 }

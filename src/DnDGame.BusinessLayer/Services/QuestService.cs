@@ -194,7 +194,8 @@ public sealed class QuestService : IQuestService
                 ObjectiveCompleted: false, NextObjectiveIndex: objectiveIndex, Completed: null);
         }
 
-        progress = await GrantObjectiveRewardsAsync(session, character, objective, progress);
+        var objectiveRewardEffects = await GrantObjectiveRewardsAsync(session, character, objective, progress);
+        progress = objectiveRewardEffects.Progress;
 
         var nextIndex = objectiveIndex + 1;
         while (nextIndex < quest.Objectives.Count && quest.Objectives[nextIndex].IsOptional)
@@ -208,14 +209,20 @@ public sealed class QuestService : IQuestService
             await _playerQuestRepository.UpdateAsync(playerQuest);
             return new UpdateObjectiveResult(
                 quest.Id, objective.Id, newProgress, objective.RequiredAmount,
-                ObjectiveCompleted: true, NextObjectiveIndex: nextIndex, Completed: null);
+                ObjectiveCompleted: true, NextObjectiveIndex: nextIndex, Completed: null)
+            {
+                NewLocationIds = objectiveRewardEffects.NewLocationIds
+            };
         }
 
         playerQuest.CurrentObjectiveIndex = nextIndex;
         var completion = await FinalizeCompletedQuestAsync(session, character, quest, playerQuest, progress);
         return new UpdateObjectiveResult(
             quest.Id, objective.Id, newProgress, objective.RequiredAmount,
-            ObjectiveCompleted: true, NextObjectiveIndex: null, Completed: completion);
+            ObjectiveCompleted: true, NextObjectiveIndex: null, Completed: completion)
+        {
+            NewLocationIds = objectiveRewardEffects.NewLocationIds
+        };
     }
 
     public async Task<QuestCompletionResult> CompleteQuestAsync(int gameSessionId, int questId)
@@ -320,7 +327,7 @@ public sealed class QuestService : IQuestService
         await _playerQuestRepository.UpdateAsync(playerQuest);
 
         var experienceResult = await GrantExperienceAsync(character, quest.Rewards.Sum(r => r.Experience));
-        await ApplyRewardEffectsAsync(session, progress, quest.Rewards, quest.ResultFlags);
+        var rewardEffects = await ApplyRewardEffectsAsync(session, progress, quest.Rewards, quest.ResultFlags);
 
         return new QuestCompletionResult(
             quest.Id,
@@ -328,10 +335,13 @@ public sealed class QuestService : IQuestService
             experienceResult.ExperienceGained,
             experienceResult.PreviousLevel,
             experienceResult.CurrentLevel,
-            experienceResult.SkillPointsGained);
+            experienceResult.SkillPointsGained)
+        {
+            NewLocationIds = rewardEffects.NewLocationIds
+        };
     }
 
-    private async Task<ScenarioProgress?> GrantObjectiveRewardsAsync(
+    private async Task<RewardEffectsResult> GrantObjectiveRewardsAsync(
         GameSession session,
         PlayerCharacter character,
         QuestObjective objective,
@@ -343,7 +353,8 @@ public sealed class QuestService : IQuestService
             await GrantExperienceAsync(character, objectiveExperience);
         }
 
-        return await ApplyRewardEffectsAsync(session, progress, objective.Rewards);
+        var rewardEffects = await ApplyRewardEffectsAsync(session, progress, objective.Rewards);
+        return rewardEffects;
     }
 
     private async Task<ExperienceResult> GrantExperienceAsync(PlayerCharacter character, int experience)
@@ -358,7 +369,7 @@ public sealed class QuestService : IQuestService
     /// as the quest's ResultFlags) into the session's ScenarioProgress, creating the
     /// progress record on demand. Returns the effective progress instance.
     /// </summary>
-    private async Task<ScenarioProgress?> ApplyRewardEffectsAsync(
+    private async Task<RewardEffectsResult> ApplyRewardEffectsAsync(
         GameSession session,
         ScenarioProgress? progress,
         IEnumerable<QuestReward> rewards,
@@ -367,6 +378,7 @@ public sealed class QuestService : IQuestService
         var flags = new Dictionary<string, bool>();
         var loyaltyDeltas = new Dictionary<int, int>();
         var warScoreDelta = 0;
+        var unlockLocationIds = new HashSet<int>();
 
         foreach (var reward in rewards)
         {
@@ -385,6 +397,11 @@ public sealed class QuestService : IQuestService
             }
 
             warScoreDelta += reward.WarScore;
+
+            foreach (var locationId in reward.NewLocationIds)
+            {
+                unlockLocationIds.Add(locationId);
+            }
         }
 
         if (extraFlags is not null)
@@ -395,13 +412,14 @@ public sealed class QuestService : IQuestService
             }
         }
 
-        if (flags.Count == 0 && loyaltyDeltas.Count == 0 && warScoreDelta == 0)
+        if (flags.Count == 0 && loyaltyDeltas.Count == 0 && warScoreDelta == 0 && unlockLocationIds.Count == 0)
         {
-            return progress;
+            return new RewardEffectsResult(progress, Array.Empty<int>());
         }
 
         var created = progress is null;
         progress ??= new ScenarioProgress { GameSessionId = session.Id };
+        var newLocationIds = new List<int>();
 
         foreach (var (flag, value) in flags)
         {
@@ -416,6 +434,14 @@ public sealed class QuestService : IQuestService
 
         progress.WarScore = Math.Max(0, progress.WarScore + warScoreDelta);
 
+        foreach (var locationId in unlockLocationIds)
+        {
+            if (progress.UnlockedLocationIds.Add(locationId))
+            {
+                newLocationIds.Add(locationId);
+            }
+        }
+
         if (created)
         {
             await _scenarioProgressRepository.AddAsync(progress);
@@ -425,8 +451,12 @@ public sealed class QuestService : IQuestService
             await _scenarioProgressRepository.UpdateAsync(progress);
         }
 
-        return progress;
+        return new RewardEffectsResult(progress, newLocationIds);
     }
+
+    private sealed record RewardEffectsResult(
+        ScenarioProgress? Progress,
+        IReadOnlyCollection<int> NewLocationIds);
 
     // --- Gating checks ---
 

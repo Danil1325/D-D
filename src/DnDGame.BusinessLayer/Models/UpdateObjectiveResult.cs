@@ -11,4 +11,7 @@ public sealed record UpdateObjectiveResult(
     int RequiredAmount,
     bool ObjectiveCompleted,
     int? NextObjectiveIndex,
-    QuestCompletionResult? Completed);
+    QuestCompletionResult? Completed)
+{
+    public IReadOnlyCollection<int> NewLocationIds { get; init; } = Array.Empty<int>();
+}
