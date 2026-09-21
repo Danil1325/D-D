@@ -19,6 +19,7 @@ LocationSeedData.Seed(store);
         new ScenarioStorySceneSeedData().Seed(store);
         ScenarioMainQuestSeedData.Seed(store);
         ScenarioSideQuestSeedData.Seed(store);
+        LocationSeedData.SeedDefinitions(store);
         AdventureSeedData.Seed(store);
     }
 }
