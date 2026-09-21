@@ -162,6 +162,102 @@ public class ScenarioStorySceneSeedDataTests
         Assert.Contains(gates.Choices, choice => choice.Text == "release them through a funerary ritual.");
     }
 
+    [Theory]
+    [InlineData(90012, 1201, (int)RaceType.Elf, 7)]
+    [InlineData(90013, 1202, (int)RaceType.Orc, 1)]
+    [InlineData(90014, 1203, (int)RaceType.Human, 4)]
+    [InlineData(90015, 1204, (int)RaceType.Dwarf, 6)]
+    public void RaceOpeningChoices_AreRaceGatedAndUnlockTheirAuthoredLocations(
+        int choiceId,
+        int nextSceneId,
+        int raceId,
+        int locationId)
+    {
+        var scene = CreateStore().StoryScenes.Single(scene => scene.Id == 1205);
+
+        var choice = Assert.Single(scene.Choices, choice => choice.Id == choiceId);
+
+        Assert.Equal(nextSceneId, choice.NextSceneId);
+        var requirement = Assert.Single(choice.Requirements);
+        Assert.Equal(raceId, requirement.RaceId);
+        Assert.Equal(new[] { locationId }, NewLocationIds(choice));
+    }
+
+    [Fact]
+    public void AuthoredLocationUnlockChoices_MatchTheOldUs22SeedPointsExactly()
+    {
+        var expectedUnlocks = new Dictionary<int, int[]>
+        {
+            [90012] = new[] { 7 },
+            [90013] = new[] { 1 },
+            [90014] = new[] { 4 },
+            [90015] = new[] { 6 },
+            [90020] = new[] { 4 },
+            [90025] = new[] { 4 },
+            [90035] = new[] { 4 },
+            [90048] = new[] { 5 },
+            [90049] = new[] { 5 },
+            [90050] = new[] { 5 },
+            [90070] = new[] { 1 },
+            [90076] = new[] { 7 },
+            [90082] = new[] { 6 },
+            [90092] = new[] { 2 },
+            [90093] = new[] { 2 },
+            [90094] = new[] { 2 }
+        };
+        var choices = CreateStore().StoryScenes.SelectMany(scene => scene.Choices).ToDictionary(choice => choice.Id);
+
+        foreach (var (choiceId, locationIds) in expectedUnlocks)
+        {
+            Assert.Equal(locationIds, NewLocationIds(choices[choiceId]));
+        }
+
+        var choicesWithUnlocks = choices.Values
+            .Where(choice => NewLocationIds(choice).Count > 0)
+            .Select(choice => choice.Id)
+            .OrderBy(id => id)
+            .ToList();
+        Assert.Equal(expectedUnlocks.Keys.OrderBy(id => id), choicesWithUnlocks);
+    }
+
+    [Fact]
+    public void NonHumanConvergence_UnlocksMisthavenAndHumanConvergenceDoesNotDuplicateIt()
+    {
+        var choices = CreateStore().StoryScenes.SelectMany(scene => scene.Choices).ToDictionary(choice => choice.Id);
+
+        AssertChoice(choices[90020], nextSceneId: 2003, expectedNewLocationIds: new[] { 4 });
+        AssertChoice(choices[90025], nextSceneId: 2003, expectedNewLocationIds: new[] { 4 });
+        AssertChoice(choices[90035], nextSceneId: 2003, expectedNewLocationIds: new[] { 4 });
+        AssertChoice(choices[90030], nextSceneId: 2003, expectedNewLocationIds: Array.Empty<int>());
+    }
+
+    [Fact]
+    public void OakheavenFragmentsAndDarkstormKeep_KeepSequentialUnlocks()
+    {
+        var choices = CreateStore().StoryScenes.SelectMany(scene => scene.Choices).ToDictionary(choice => choice.Id);
+
+        AssertChoice(choices[90048], nextSceneId: 3006, expectedNewLocationIds: new[] { 5 });
+        AssertChoice(choices[90049], nextSceneId: 3006, expectedNewLocationIds: new[] { 5 });
+        AssertChoice(choices[90050], nextSceneId: 3006, expectedNewLocationIds: new[] { 5 });
+        AssertChoice(choices[90070], nextSceneId: 4008, expectedNewLocationIds: new[] { 1 });
+        AssertChoice(choices[90076], nextSceneId: 4009, expectedNewLocationIds: new[] { 7 });
+        AssertChoice(choices[90082], nextSceneId: 4010, expectedNewLocationIds: new[] { 6 });
+        AssertChoice(choices[90092], nextSceneId: 5101, expectedNewLocationIds: new[] { 2 });
+        AssertChoice(choices[90093], nextSceneId: 5101, expectedNewLocationIds: new[] { 2 });
+        AssertChoice(choices[90094], nextSceneId: 5101, expectedNewLocationIds: new[] { 2 });
+    }
+
+    [Fact]
+    public void FinalReturnToHerosOverlook_DoesNotAuthorANewLocationUnlock()
+    {
+        var unlocks = CreateStore().StoryScenes
+            .SelectMany(scene => scene.Choices)
+            .SelectMany(NewLocationIds)
+            .ToList();
+
+        Assert.DoesNotContain(3, unlocks);
+    }
+
     [Fact]
     public void AllRoutedScenes_AreReachableFromTheOpening()
     {
@@ -196,5 +292,21 @@ public class ScenarioStorySceneSeedDataTests
             .Except(new[] { 3005, 6107, 4112, 4113, 4115, 4116 }).ToList();
         Assert.Empty(unreachable);
         Assert.Contains(choiceTargets, target => target == 6101);
+    }
+
+    private static IReadOnlyList<int> NewLocationIds(StoryChoice choice)
+    {
+        return choice.Consequences
+            .SelectMany(consequence => consequence.NewLocationIds)
+            .ToList();
+    }
+
+    private static void AssertChoice(
+        StoryChoice choice,
+        int nextSceneId,
+        IReadOnlyList<int> expectedNewLocationIds)
+    {
+        Assert.Equal(nextSceneId, choice.NextSceneId);
+        Assert.Equal(expectedNewLocationIds, NewLocationIds(choice));
     }
 }
