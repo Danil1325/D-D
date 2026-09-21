@@ -6,11 +6,7 @@ namespace DnDGame.MockData.SeedData;
 /// <summary>
 /// Seeds the 21 enemies (7 families x 3 tiers) confirmed from the reference images,
 /// plus 6 named campaign bosses (Ids 22-27) added for BACK-LOC-05's location encounter
-/// pools. Stats for the original 21 escalate per tier within each family; exact values
-/// are placeholders (TBD, same as the race attribute ranges) but internally consistent
-/// — roughly 1.5x per tier step, with each family's baseline reflecting its relative
-/// danger. The 6 named bosses are separate, unique placeholders (see their own
-/// SpecialAbilityText) not yet balanced against that progression.
+/// pools. Stats for the original 21 escalate per tier within each family;
 ///
 /// ImagePath values match the actual project asset filenames exactly, including
 /// inconsistent casing/spacing between the display Name and the file itself (e.g.
@@ -61,15 +57,123 @@ internal static class EnemySeedData
             new Enemy { Id = 21, Name = "Dread Wraith", Family = EnemyFamily.Wraith, Tier = EnemyTier.Elite, Description = "A crowned, ancient horror wreathed in dark flame.", ImagePath = "enemies/Dread_Wraith.png", Health = 30, Defense = 16, AttackBonus = 8, DamageAmount = 10, XpReward = 50, SpecialAbilityText = "None." },
 
             // Named campaign bosses (BACK-LOC-05) — referenced by LocationEncounterSeedData as
-            // Boss-tier encounters. PLACEHOLDER stats only: these are unique, above-Elite bosses
-            // with no reference card, so values are rough extrapolations above their family's
-            // existing Elite entry. To be finalized later — do not treat as balanced.
-            new Enemy { Id = 22, Name = "The Herald", Family = EnemyFamily.Wraith, Tier = EnemyTier.Boss, Description = "A spectral herald of the coming ruin. Placeholder lore.", ImagePath = "enemies/The_Herald.png", Health = 55, Defense = 20, AttackBonus = 11, DamageAmount = 15, XpReward = 100, SpecialAbilityText = "PLACEHOLDER — stats/ability to be finalized." },
-            new Enemy { Id = 23, Name = "Vharruk", Family = EnemyFamily.Demon, Tier = EnemyTier.Boss, Description = "A demonic power behind the ruin. Placeholder lore.", ImagePath = "enemies/Vharruk.png", Health = 60, Defense = 21, AttackBonus = 12, DamageAmount = 16, XpReward = 110, SpecialAbilityText = "PLACEHOLDER — stats/ability to be finalized." },
-            new Enemy { Id = 24, Name = "Karnyx", Family = EnemyFamily.Chimera, Tier = EnemyTier.Boss, Description = "A monstrous chimeric warlord. Placeholder lore.", ImagePath = "enemies/Karnyx.png", Health = 50, Defense = 19, AttackBonus = 10, DamageAmount = 13, XpReward = 90, SpecialAbilityText = "PLACEHOLDER — stats/ability to be finalized." },
-            new Enemy { Id = 25, Name = "Nerath-Dur the Lich", Family = EnemyFamily.Skeleton, Tier = EnemyTier.Boss, Description = "An ancient lich-king of the Bone Peaks. Placeholder lore.", ImagePath = "enemies/Nerath_Dur.png", Health = 48, Defense = 18, AttackBonus = 10, DamageAmount = 13, XpReward = 90, SpecialAbilityText = "PLACEHOLDER — stats/ability to be finalized." },
-            new Enemy { Id = 26, Name = "Grommash-Vurr the Troll King", Family = EnemyFamily.Troll, Tier = EnemyTier.Boss, Description = "A rival troll king ruling the Bone Peaks. Placeholder lore.", ImagePath = "enemies/Grommash_Vurr.png", Health = 52, Defense = 19, AttackBonus = 11, DamageAmount = 14, XpReward = 95, SpecialAbilityText = "PLACEHOLDER — stats/ability to be finalized." },
-            new Enemy { Id = 27, Name = "Greater Demon Mayor", Family = EnemyFamily.Demon, Tier = EnemyTier.Boss, Description = "Oakheaven's corrupted mayor, transformed by fiendish influence. Placeholder lore.", ImagePath = "enemies/Greater_Demon_Mayor.png", Health = 45, Defense = 17, AttackBonus = 9, DamageAmount = 12, XpReward = 80, SpecialAbilityText = "PLACEHOLDER — stats/ability to be finalized." }
+            // Boss-tier encounters.
+            new Enemy
+            {
+                Id = 22,
+                Name = "The Herald",
+                Family = EnemyFamily.Wraith,
+                Tier = EnemyTier.Boss,
+                Description = "A spectral herald who announces Vharruk's return and leads the assault on Hero's Overlook.",
+                ImagePath = "enemies/The_Herald.png",
+                Health = 55,
+                Defense = 20,
+                AttackBonus = 11,
+                DamageAmount = 15,
+                XpReward = 100,
+                SpecialAbilityText = "Spectral Summons — Summons one Phantom during battle and can only be reliably damaged by magic, light, silver, or blessed weapons."
+            },
+            
+            new Enemy
+            {
+                Id = 23,
+                Name = "Vharruk",
+                Family = EnemyFamily.Demon,
+                Tier = EnemyTier.Boss,
+                Description = "The Demon Lord known as the King of Darkness and the final enemy connected to the Crown of Ash.",
+                ImagePath = "enemies/Vharruk.png",
+                Health = 160,
+                Defense = 26,
+                AttackBonus = 13,
+                DamageAmount = 17,
+                XpReward = 300,
+                SpecialAbilityText = "Three Phases — Returns with 180 Health in phase two and 200 Health in phase three. He cannot be permanently defeated while the Crown remains intact."
+            },
+            
+            new Enemy
+            {
+                Id = 24,
+                Name = "Karnyx",
+                Family = EnemyFamily.Demon,
+                Tier = EnemyTier.Boss,
+                Description = "A twice-burned Greater Demon guarding the sealed chamber beneath Ashtonia.",
+                ImagePath = "enemies/Karnyx.png",
+                Health = 65,
+                Defense = 18,
+                AttackBonus = 10,
+                DamageAmount = 14,
+                XpReward = 120,
+                SpecialAbilityText = "Twice-Burned Regeneration — Restores 5 Health each round and can summon two Demons once per battle. Consecration or fire stops the regeneration."
+            },
+            
+            new Enemy
+            {
+                Id = 25,
+                Name = "Nerath-Dur the Lich",
+                Family = EnemyFamily.Skeleton,
+                Tier = EnemyTier.Boss,
+                Description = "The undead ruler of Karag-Dur who guards the Third Crown Fragment and refuses to let the dead leave his halls.",
+                ImagePath = "enemies/Nerath_Dur_The_Lich.png",
+                Health = 90,
+                Defense = 22,
+                AttackBonus = 10,
+                DamageAmount = 12,
+                XpReward = 160,
+                SpecialAbilityText = "Hidden Phylactery — Cannot be permanently defeated until his phylactery is destroyed. The encounter can also be resolved through negotiation or ritual."
+            },
+            
+            new Enemy
+            {
+                Id = 26,
+                Name = "Gromash-Vurr the Troll King",
+                Family = EnemyFamily.Troll,
+                Tier = EnemyTier.Boss,
+                Description = "The Troll King who seized the great forge of Karag-Dur and seeks a war worthy of being remembered.",
+                ImagePath = "enemies/Gromash_Vurr_The_Troll_King.png",
+                Health = 110,
+                Defense = 23,
+                AttackBonus = 12,
+                DamageAmount = 18,
+                XpReward = 160,
+                SpecialAbilityText = "Royal Regeneration — Restores 6 Health each round and empowers his attacks with magic. Fire, acid, or magical debuffs stop the regeneration."
+            },
+            
+            new Enemy
+            {
+                Id = 27,
+                Name = "Greater Demon Mayor",
+                Family = EnemyFamily.Demon,
+                Tier = EnemyTier.Boss,
+                Description = "The Greater Demon controlling Oakheaven during the demonic occupation and the main threat to the surviving townspeople.",
+                ImagePath = "enemies/Greater_Demon_Mayor.png",
+                Health = 70,
+                Defense = 19,
+                AttackBonus = 10,
+                DamageAmount = 14,
+                XpReward = 120,
+                SpecialAbilityText = "Demonic Authority — Summons two Demons once per battle and regenerates 5 Health each round unless affected by consecration or fire.",
+            },
+
+            // Added per explicit user request (BACK-LOC-06) so the "Kregg is not an enemy
+            // once goblinAlliance is true" rule has a real Enemy row to exclude. Tier is
+            // EnemyTier.Boss (not Elite, despite being a "Goblin Lord") to avoid colliding
+            // with Lord Goblin (Id 6), which already holds Goblin's Elite slot — see the
+            // EnemyTier.Boss doc comment for why the (Family, Tier) pairing must stay unique.
+            new Enemy
+            {
+                Id = 28,
+                Name = "Kregg the Sundered",
+                Family = EnemyFamily.Goblin,
+                Tier = EnemyTier.Boss,
+                Description = "A proud Goblin Lord commanding the goblin forces around Oakheaven. He may become an ally if the player forms the goblin alliance.",
+                ImagePath = "enemies/Kregg_The_Sundered.png",
+                Health = 55,
+                Defense = 16,
+                AttackBonus = 8,
+                DamageAmount = 10,
+                XpReward = 90,
+                SpecialAbilityText = "Warband Commander — Summons two Goblins once per battle. Kregg does not appear as an enemy when the goblin alliance is active."
+            }
         });
     }
 }

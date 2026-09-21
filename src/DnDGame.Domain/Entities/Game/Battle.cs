@@ -4,6 +4,7 @@ using DnDGame.Domain.Common;
 using DnDGame.Domain.Engine.Enums;
 using DnDGame.Domain.Engine.Models;
 using DnDGame.Domain.Entities.Enemies;
+using DnDGame.Domain.Entities.Locations;
 using DnDGame.Domain.Enums;
 
 /// <summary>
@@ -79,6 +80,18 @@ public class Battle : BaseEntity
     /// This is an instance identifier, not an enemy template ID.
     /// </summary>
     public Guid? SummonerInstanceId { get; set; }
+
+    /// <summary>
+    /// The location this battle was fought at, when started from a location's
+    /// encounter pool (see LocationEncounterService). Null for battles started
+    /// through the story-node pipeline (StartBattleAsync resolves the enemy from
+    /// GameSession.CurrentNodeId, which carries no location), so this cannot be
+    /// backfilled — only newly-created, location-initiated battles set it. The same
+    /// EnemyId can be a Boss at one location and a repeatable Normal/Elite encounter
+    /// at another (e.g. Dread Wraith), so "already defeated" checks must scope by
+    /// LocationId, not EnemyId alone.
+    /// </summary>
+    public LocationId? LocationId { get; set; }
 
     /// <summary>
     /// Navigation property to the enemy.

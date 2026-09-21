@@ -320,7 +320,8 @@ public sealed class QuestService : IQuestService
         await _playerQuestRepository.UpdateAsync(playerQuest);
 
         var experienceResult = await GrantExperienceAsync(character, quest.Rewards.Sum(r => r.Experience));
-        await ApplyRewardEffectsAsync(session, progress, quest.Rewards, quest.ResultFlags);
+        progress = await ApplyRewardEffectsAsync(session, progress, quest.Rewards, quest.ResultFlags);
+        await ApplyOutcomeEffectsAsync(session, progress, quest);
 
         return new QuestCompletionResult(
             quest.Id,
@@ -426,6 +427,82 @@ public sealed class QuestService : IQuestService
         }
 
         return progress;
+    }
+
+    /// <summary>
+    /// Quest.Outcomes is alternative-resolution configuration (see QuestOutcome's own
+    /// remarks: "applying rewards, flags and effects belongs to quest logic") that,
+    /// until BACK-LOC-06, nothing ever read — completing a quest with Outcomes
+    /// silently applied none of them. This selects the first outcome whose
+    /// RequiredFlags all currently match (the usual "missing flag counts as false"
+    /// convention — see MatchesRequiredFlag, deliberately not the stricter HasFlag
+    /// used elsewhere in this class, which would wrongly reject a false-requiring
+    /// outcome on a session with no ScenarioProgress yet) and merges only its
+    /// ResultFlags and Allies into StoryFlags — Allies keyed by their own stable ally
+    /// code (e.g. "divine-chimera"), so "was this NPC recruited" is just an ordinary
+    /// story flag, queryable the same way any other one is (e.g. by
+    /// LocationEncounterService to exclude that NPC's Enemy row once true).
+    ///
+    /// Deliberately NOT applied here: ExperienceRewardPercentage, WarScoreChange,
+    /// AshClockChange, CorruptionChange, CompanionLoyaltyChanges, CounterChanges,
+    /// Items. Wiring those needs design decisions (e.g. a companion code-to-id
+    /// lookup that doesn't exist yet) outside BACK-LOC-06's scope.
+    /// </summary>
+    private async Task ApplyOutcomeEffectsAsync(GameSession session, ScenarioProgress? progress, Quest quest)
+    {
+        var eligibleOutcome = quest.Outcomes.FirstOrDefault(outcome =>
+            outcome.RequiredFlags.All(entry => MatchesRequiredFlag(progress, entry.Key, entry.Value)));
+        if (eligibleOutcome is null)
+        {
+            return;
+        }
+
+        var flags = new Dictionary<string, bool>();
+        foreach (var (flag, value) in eligibleOutcome.ResultFlags)
+        {
+            flags[flag] = value;
+        }
+
+        foreach (var (allyCode, recruited) in eligibleOutcome.Allies)
+        {
+            flags[allyCode] = recruited;
+        }
+
+        if (flags.Count == 0)
+        {
+            return;
+        }
+
+        var created = progress is null;
+        progress ??= new ScenarioProgress { GameSessionId = session.Id };
+
+        foreach (var (flag, value) in flags)
+        {
+            progress.StoryFlags[flag] = value;
+        }
+
+        if (created)
+        {
+            await _scenarioProgressRepository.AddAsync(progress);
+        }
+        else
+        {
+            await _scenarioProgressRepository.UpdateAsync(progress);
+        }
+    }
+
+    /// <summary>
+    /// Unlike HasFlag (which treats a missing ScenarioProgress as an unconditional
+    /// false match, correct only for flags required to be true), this treats a
+    /// missing flag as false regardless of which value is required — the same
+    /// "a missing flag is false" convention documented on ChoiceRequirement — so an
+    /// outcome whose RequiredFlags calls for a flag to be false still matches on a
+    /// fresh session where nothing has been set yet.
+    /// </summary>
+    private static bool MatchesRequiredFlag(ScenarioProgress? progress, string flag, bool requiredValue)
+    {
+        var actualValue = progress?.StoryFlags.GetValueOrDefault(flag) ?? false;
+        return actualValue == requiredValue;
     }
 
     // --- Gating checks ---

@@ -6,13 +6,50 @@ namespace DnDGame.MockData.SeedData;
 /// <summary>
 /// Seeds the per-location enemy encounter pools (BACK-LOC-05), one
 /// LocationEncounterDefinition per LocationId. References Enemy rows from
-/// EnemySeedData by Id, including the 6 named campaign bosses (Ids 22-27) added
-/// there as placeholders for this feature — see EnemySeedData's doc comment; their
-/// stats are not final.
+/// EnemySeedData by Id, including the 6 named campaign bosses (Ids 22-27) and
+/// Kregg the Sundered (Id 28) added there for this feature — see EnemySeedData's
+/// doc comment; their stats are placeholders, not final.
+///
+/// BACK-LOC-06 wires the "an NPC that became an ally is never an enemy" rule onto
+/// the specific bosses named in that task, reusing the real, persisted story flags
+/// from ScenarioSideQuestSeedData rather than inventing new ones:
+///   - Kregg (id 28) and Hobgoblin at Oakheaven, and Grommash-Vurr at The Bone
+///     Peaks, require their family's alliance route flag to be false (i.e. the
+///     diplomatic route has not been opened) — see GoblinAllianceRouteFlag/
+///     TrollAllianceRouteFlag. Goblin (id 4, the generic raider, distinct from
+///     Kregg himself) shares the same gate.
+///   - Divine Chimera at Darkstorm Keep requires the real "divine-chimera" ally
+///     code (DivineChimeraAllyFlag) to be false. QuestService now persists
+///     QuestOutcome.Allies into ScenarioProgress.StoryFlags on quest completion
+///     (see QuestService.ApplyOutcomeEffectsAsync), so this is a live, functional
+///     gate, not a dead flag.
 /// </summary>
 internal static class LocationEncounterSeedData
 {
-    private const string OakheavenAllianceFailedFlag = "OakheavenAllianceFailed";
+    /// <summary>Set true by SQ-OH-02's "banner-returned" outcome (ScenarioSideQuestSeedData.Oakheaven.cs).</summary>
+    private const string GoblinAllianceRouteFlag = "goblin_alliance_route";
+
+    /// <summary>Set true by SQ-BP's troll-duel outcome (ScenarioSideQuestSeedData.TheBonePeaks.cs).</summary>
+    private const string TrollAllianceRouteFlag = "troll_alliance_route";
+
+    /// <summary>
+    /// The real QuestOutcome.Allies code set by SQ-DK-02's "restored" outcome
+    /// (ScenarioSideQuestSeedData.DarkstormKeep.cs), persisted as a story flag by
+    /// QuestService.ApplyOutcomeEffectsAsync.
+    /// </summary>
+    private const string DivineChimeraAllyFlag = "divine-chimera";
+
+    /// <summary>Mirrors Hero's Overlook's own LocationDefinition.SpecialFlags entry (LocationSeedData.cs).</summary>
+    private const string FinaleUnlockedFlag = "FinaleUnlocked";
+
+    /// <summary>
+    /// SQ-MP-02 "Nine Rings, No Champion" (quest id 1005): Arena Master Kael's
+    /// Hobgoblin challenger. The quest's own QuestEnemy handles the scripted duel;
+    /// this ties the arena's separate, roamable Hobgoblin random encounter to the
+    /// same story window so it only appears while that questline is actually live.
+    /// </summary>
+    private const int ArenaHobgoblinChallengeQuestId = 1005;
+
     private static readonly string[] MisthavenPortSubLocations = { "arena", "archives", "port", "wrecks" };
 
     public static void Seed(InMemoryGameDataStore store)
@@ -49,7 +86,11 @@ internal static class LocationEncounterSeedData
                     new() { EnemyId = 9, Tier = EncounterTier.Elite },   // King Slime
                     new() { EnemyId = 17, Tier = EncounterTier.Elite },  // Greater Demon
                     new() { EnemyId = 14, Tier = EncounterTier.Elite },  // Great Chimera
-                    new() { EnemyId = 15, Tier = EncounterTier.Boss },   // Divine Chimera
+                    new()
+                    {
+                        EnemyId = 15, Tier = EncounterTier.Boss, // Divine Chimera
+                        Availability = new EncounterAvailabilityRequirement { RequiredStoryFlags = new() { [DivineChimeraAllyFlag] = false } }
+                    },
                     new() { EnemyId = 24, Tier = EncounterTier.Boss },   // Karnyx
                     new() { EnemyId = 22, Tier = EncounterTier.Boss },   // The Herald
                     new() { EnemyId = 23, Tier = EncounterTier.Boss }    // Vharruk
@@ -67,8 +108,19 @@ internal static class LocationEncounterSeedData
                     new() { EnemyId = 4, Tier = EncounterTier.Normal },  // Goblin
                     new() { EnemyId = 20, Tier = EncounterTier.Elite },  // Wraith
                     new() { EnemyId = 2, Tier = EncounterTier.Elite },   // Skeleton Knight
-                    new() { EnemyId = 22, Tier = EncounterTier.Boss },   // The Herald
-                    new() { EnemyId = 23, Tier = EncounterTier.Boss }    // Vharruk
+                    new()
+                    {
+                        // Final bosses do not appear at Hero's Overlook during the prologue —
+                        // gated on the same FinaleUnlocked flag this location's own
+                        // LocationDefinition.SpecialFlags already exposes (LocationSeedData.cs).
+                        EnemyId = 22, Tier = EncounterTier.Boss, // The Herald
+                        Availability = new EncounterAvailabilityRequirement { RequiredStoryFlags = new() { [FinaleUnlockedFlag] = true } }
+                    },
+                    new()
+                    {
+                        EnemyId = 23, Tier = EncounterTier.Boss, // Vharruk
+                        Availability = new EncounterAvailabilityRequirement { RequiredStoryFlags = new() { [FinaleUnlockedFlag] = true } }
+                    }
                 }
             },
 
@@ -81,7 +133,15 @@ internal static class LocationEncounterSeedData
                 {
                     new() { EnemyId = 7, Tier = EncounterTier.Normal, Availability = MisthavenPortAvailability() },  // Slime
                     new() { EnemyId = 19, Tier = EncounterTier.Normal, Availability = MisthavenPortAvailability() }, // Phantom
-                    new() { EnemyId = 5, Tier = EncounterTier.Normal, Availability = MisthavenPortAvailability() },  // Hobgoblin
+                    new()
+                    {
+                        EnemyId = 5, Tier = EncounterTier.Normal, // Hobgoblin (Arena Master Kael's challenger)
+                        Availability = new EncounterAvailabilityRequirement
+                        {
+                            RequiredSubLocations = MisthavenPortSubLocations.ToList(),
+                            RequiredActiveQuestId = ArenaHobgoblinChallengeQuestId
+                        }
+                    },
                     new() { EnemyId = 8, Tier = EncounterTier.Elite, Availability = MisthavenPortAvailability() },   // Great Slime
                     new() { EnemyId = 20, Tier = EncounterTier.Elite, Availability = MisthavenPortAvailability() },  // Wraith
                     new() { EnemyId = 14, Tier = EncounterTier.Elite, Availability = MisthavenPortAvailability() }   // Great Chimera
@@ -100,18 +160,30 @@ internal static class LocationEncounterSeedData
                     new()
                     {
                         EnemyId = 4, Tier = EncounterTier.Normal, // Goblin
-                        Availability = new EncounterAvailabilityRequirement { RequiredFlag = OakheavenAllianceFailedFlag, RequiredFlagValue = true }
+                        Availability = new EncounterAvailabilityRequirement { RequiredStoryFlags = new() { [GoblinAllianceRouteFlag] = false } }
                     },
                     new()
                     {
                         EnemyId = 5, Tier = EncounterTier.Normal, // Hobgoblin
-                        Availability = new EncounterAvailabilityRequirement { RequiredFlag = OakheavenAllianceFailedFlag, RequiredFlagValue = true }
+                        Availability = new EncounterAvailabilityRequirement { RequiredStoryFlags = new() { [GoblinAllianceRouteFlag] = false } }
+                    },
+                    new()
+                    {
+                        EnemyId = 28, Tier = EncounterTier.Normal, // Kregg the Sundered
+                        Availability = new EncounterAvailabilityRequirement { RequiredStoryFlags = new() { [GoblinAllianceRouteFlag] = false } }
                     },
                     new() { EnemyId = 17, Tier = EncounterTier.Elite }, // Greater Demon
                     new() { EnemyId = 8, Tier = EncounterTier.Elite },  // Great Slime
                     new() { EnemyId = 20, Tier = EncounterTier.Elite }, // Wraith
                     new() { EnemyId = 27, Tier = EncounterTier.Boss },  // Greater Demon Mayor
-                    new() { EnemyId = 9, Tier = EncounterTier.Boss }    // King Slime (optional boss)
+                    new()
+                    {
+                        // King Slime is an optional boss; reuses the same Ash Clock 4+ threshold
+                        // already established for this exact enemy at Oakheaven in
+                        // ScenarioSideQuestSeedData.Oakheaven.cs ("Slimes and one King Slime if Ash Clock is 4+").
+                        EnemyId = 9, Tier = EncounterTier.Boss,
+                        Availability = new EncounterAvailabilityRequirement { MinimumAshClock = 4 }
+                    }
                 }
             },
 
@@ -129,7 +201,11 @@ internal static class LocationEncounterSeedData
                     new() { EnemyId = 8, Tier = EncounterTier.Elite },   // Great Slime
                     new() { EnemyId = 14, Tier = EncounterTier.Elite },  // Great Chimera
                     new() { EnemyId = 25, Tier = EncounterTier.Boss },   // Nerath-Dur the Lich
-                    new() { EnemyId = 26, Tier = EncounterTier.Boss }    // Grommash-Vurr the Troll King
+                    new()
+                    {
+                        EnemyId = 26, Tier = EncounterTier.Boss, // Grommash-Vurr the Troll King
+                        Availability = new EncounterAvailabilityRequirement { RequiredStoryFlags = new() { [TrollAllianceRouteFlag] = false } }
+                    }
                 }
             },
 

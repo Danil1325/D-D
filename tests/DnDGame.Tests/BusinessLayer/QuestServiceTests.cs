@@ -202,6 +202,61 @@ public class QuestServiceTests
         Assert.True(progress.StoryFlags["side_complete"]);
     }
 
+    // --- Completion: Quest.Outcomes application (BACK-LOC-06) ---
+
+    [Fact]
+    public async Task CompleteQuest_AppliesEligibleOutcome_PersistingAllyCodeAsStoryFlag()
+    {
+        // SQ-DK-02 ("The Chimera's Three Hearts"): completing it applies whichever
+        // Outcome's RequiredFlags currently match. Seeding divine_chimera_restored=true
+        // (normally set by an in-story choice, not yet wired to any service — a
+        // separate gap from this one) selects the "restored" outcome, whose
+        // Allies["divine-chimera"] must end up as an ordinary, queryable story flag.
+        var (service, store, _, _, _) = CreateScenario(characterLevel: 9);
+        var questId = QuestId(store, "SQ-DK-02");
+        store.ScenarioProgresses.Add(new ScenarioProgress
+        {
+            Id = 1,
+            GameSessionId = 1,
+            StoryFlags = new Dictionary<string, bool> { ["divine_chimera_restored"] = true }
+        });
+
+        await service.StartQuestAsync(1, questId);
+        await service.CompleteQuestAsync(1, questId);
+
+        var progress = store.ScenarioProgresses.Single(p => p.GameSessionId == 1);
+        Assert.True(progress.StoryFlags["divine-chimera"]);
+    }
+
+    [Fact]
+    public async Task CompleteQuest_WithNoRequiredFlagsSet_SelectsTheOutcomeThatOnlyRequiresFalseFlags()
+    {
+        // The "defeated" outcome requires divine_chimera_restored == false, which a
+        // brand-new session with no ScenarioProgress satisfies by the "missing flag
+        // counts as false" convention — it must be selected by default, granting its
+        // Items rather than the "restored" outcome's Allies.
+        var (service, store, _, _, _) = CreateScenario(characterLevel: 9);
+        var questId = QuestId(store, "SQ-DK-02");
+
+        await service.StartQuestAsync(1, questId);
+        await service.CompleteQuestAsync(1, questId);
+
+        var progress = store.ScenarioProgresses.Single(p => p.GameSessionId == 1);
+        Assert.False(progress.StoryFlags.ContainsKey("divine-chimera"));
+    }
+
+    [Fact]
+    public async Task CompleteQuest_WithNoOutcomesConfigured_CreatesNoScenarioProgressWhenThereAreNoOtherFlags()
+    {
+        var (service, store, _, _, _) = CreateScenario();
+        var quest = AddSyntheticQuest(store, 510);
+
+        await service.StartQuestAsync(1, quest.Id);
+        await service.CompleteQuestAsync(1, quest.Id);
+
+        Assert.Empty(store.ScenarioProgresses);
+    }
+
     // --- Objectives ---
 
     [Fact]

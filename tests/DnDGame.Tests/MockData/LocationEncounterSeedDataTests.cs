@@ -35,14 +35,14 @@ public class LocationEncounterSeedDataTests
     }
 
     [Fact]
-    public void NamedCampaignBosses_ResolveToTheirPlaceholderEnemyRows()
+    public void NamedCampaignBosses_ResolveToTheirEnemyRows()
     {
         var store = MockDataBootstrapper.CreateSeededStore();
         var enemiesById = store.Enemies.ToDictionary(enemy => enemy.Id);
         var allSlots = store.LocationEncounterDefinitions.SelectMany(definition => definition.Enemies);
 
         var expectedBossIds = new[] { 22, 23, 24, 25, 26, 27 };
-        var expectedNames = new[] { "The Herald", "Vharruk", "Karnyx", "Nerath-Dur the Lich", "Grommash-Vurr the Troll King", "Greater Demon Mayor" };
+        var expectedNames = new[] { "The Herald", "Vharruk", "Karnyx", "Nerath-Dur the Lich", "Gromash-Vurr the Troll King", "Greater Demon Mayor" };
 
         foreach (var (enemyId, name) in expectedBossIds.Zip(expectedNames))
         {
@@ -80,7 +80,7 @@ public class LocationEncounterSeedDataTests
     }
 
     [Fact]
-    public void Oakheaven_GoblinAndHobgoblin_OnlyAvailableWhenAllianceFailedFlagIsSet()
+    public void Oakheaven_GoblinAndHobgoblin_OnlyAvailableWhileGoblinAllianceRouteIsClosed()
     {
         var store = MockDataBootstrapper.CreateSeededStore();
         var definition = Assert.Single(store.LocationEncounterDefinitions, d => d.LocationId == LocationId.Oakheaven);
@@ -89,10 +89,67 @@ public class LocationEncounterSeedDataTests
         {
             var slot = Assert.Single(definition.Enemies, enemy => enemy.EnemyId == enemyId);
             Assert.NotNull(slot.Availability);
-            Assert.Equal("OakheavenAllianceFailed", slot.Availability!.RequiredFlag);
-            Assert.True(slot.Availability.RequiredFlagValue);
+            Assert.Equal(new Dictionary<string, bool> { ["goblin_alliance_route"] = false }, slot.Availability!.RequiredStoryFlags);
         }
 
         Assert.DoesNotContain(definition.Enemies, enemy => (enemy.EnemyId == 16 || enemy.EnemyId == 7) && enemy.Availability != null);
+    }
+
+    [Fact]
+    public void Oakheaven_Kregg_IsANormalEncounter_OnlyAvailableWhileGoblinAllianceRouteIsClosed()
+    {
+        var store = MockDataBootstrapper.CreateSeededStore();
+        var definition = Assert.Single(store.LocationEncounterDefinitions, d => d.LocationId == LocationId.Oakheaven);
+        var kregg = Assert.Single(store.Enemies, enemy => enemy.Id == 28);
+        Assert.Equal("Kregg the Sundered", kregg.Name);
+
+        var slot = Assert.Single(definition.Enemies, enemy => enemy.EnemyId == 28);
+        Assert.Equal(EncounterTier.Normal, slot.Tier);
+        Assert.Equal(new Dictionary<string, bool> { ["goblin_alliance_route"] = false }, slot.Availability?.RequiredStoryFlags);
+    }
+
+    [Fact]
+    public void Oakheaven_KingSlimeBoss_RequiresAshClockFourPlus()
+    {
+        var store = MockDataBootstrapper.CreateSeededStore();
+        var definition = Assert.Single(store.LocationEncounterDefinitions, d => d.LocationId == LocationId.Oakheaven);
+
+        var kingSlime = Assert.Single(definition.Enemies, enemy => enemy.EnemyId == 9);
+        Assert.Equal(EncounterTier.Boss, kingSlime.Tier);
+        Assert.Equal(4, kingSlime.Availability?.MinimumAshClock);
+    }
+
+    [Fact]
+    public void DarkstormKeep_DivineChimera_RequiresItNotYetBeRestored()
+    {
+        var store = MockDataBootstrapper.CreateSeededStore();
+        var definition = Assert.Single(store.LocationEncounterDefinitions, d => d.LocationId == LocationId.DarkstormKeep);
+
+        var divineChimera = Assert.Single(definition.Enemies, enemy => enemy.EnemyId == 15);
+        Assert.Equal(new Dictionary<string, bool> { ["divine-chimera"] = false }, divineChimera.Availability?.RequiredStoryFlags);
+    }
+
+    [Fact]
+    public void TheBonePeaks_GrommashVurr_OnlyAvailableWhileTrollAllianceRouteIsClosed()
+    {
+        var store = MockDataBootstrapper.CreateSeededStore();
+        var definition = Assert.Single(store.LocationEncounterDefinitions, d => d.LocationId == LocationId.TheBonePeaks);
+
+        var grommashVurr = Assert.Single(definition.Enemies, enemy => enemy.EnemyId == 26);
+        Assert.Equal(new Dictionary<string, bool> { ["troll_alliance_route"] = false }, grommashVurr.Availability?.RequiredStoryFlags);
+    }
+
+    [Fact]
+    public void HerosOverlook_FinalBosses_OnlyAvailableOnceFinaleIsUnlocked()
+    {
+        var store = MockDataBootstrapper.CreateSeededStore();
+        var definition = Assert.Single(store.LocationEncounterDefinitions, d => d.LocationId == LocationId.HerosOverlook);
+
+        foreach (var enemyId in new[] { 22, 23 }) // The Herald, Vharruk
+        {
+            var slot = Assert.Single(definition.Enemies, enemy => enemy.EnemyId == enemyId);
+            Assert.Equal(EncounterTier.Boss, slot.Tier);
+            Assert.Equal(new Dictionary<string, bool> { ["FinaleUnlocked"] = true }, slot.Availability?.RequiredStoryFlags);
+        }
     }
 }

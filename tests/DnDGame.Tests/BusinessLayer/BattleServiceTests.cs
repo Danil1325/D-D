@@ -12,6 +12,7 @@ using DnDGame.Domain.Entities.Cards;
 using DnDGame.Domain.Entities.Characters;
 using DnDGame.Domain.Entities.Enemies;
 using DnDGame.Domain.Entities.Game;
+using DnDGame.Domain.Entities.Locations;
 using DnDGame.Domain.Enums;
 using DnDGame.MockData;
 using DnDGame.MockData.Repositories;
@@ -106,6 +107,72 @@ public class BattleServiceTests
             () => service.StartBattleAsync(new StartBattleRequestDto { GameSessionId = session.Id, DeckId = deck.Id }));
 
         Assert.Equal(EngineErrorCodes.MissingCombatRule, exception.ErrorCode);
+    }
+
+    // --- StartLocationEncounterBattleAsync (BACK-LOC-06) ---
+
+    [Fact]
+    public async Task StartLocationEncounterBattleAsync_ValidEnemyFromPool_CreatesBattleWithLocationIdSet()
+    {
+        var (service, store, _, session, deck, enemy, _) = CreateScenario();
+        store.LocationEncounterDefinitions.Add(new LocationEncounterDefinition
+        {
+            Id = 1,
+            LocationId = LocationId.Ashtonia,
+            Enemies = new List<EncounterEnemyDefinition>
+            {
+                new() { EnemyId = enemy.Id, Tier = EncounterTier.Normal }
+            }
+        });
+
+        var result = await service.StartLocationEncounterBattleAsync(new StartLocationEncounterBattleRequestDto
+        {
+            GameSessionId = session.Id,
+            DeckId = deck.Id,
+            LocationId = LocationId.Ashtonia,
+            EnemyId = enemy.Id
+        });
+
+        Assert.NotEqual(0, result.Id);
+        Assert.Single(store.Battles);
+        Assert.Equal(enemy.Id, store.Battles[0].EnemyId);
+        Assert.Equal(LocationId.Ashtonia, store.Battles[0].LocationId);
+    }
+
+    [Fact]
+    public async Task StartLocationEncounterBattleAsync_EnemyNotCurrentlyAvailableAtThatLocation_ThrowsConflict()
+    {
+        var (service, _, _, session, deck, enemy, _) = CreateScenario();
+        // No LocationEncounterDefinition seeded at all, so nothing is ever available.
+
+        var exception = await Assert.ThrowsAsync<DomainException>(() => service.StartLocationEncounterBattleAsync(
+            new StartLocationEncounterBattleRequestDto
+            {
+                GameSessionId = session.Id,
+                DeckId = deck.Id,
+                LocationId = LocationId.Ashtonia,
+                EnemyId = enemy.Id
+            }));
+
+        Assert.Equal(ErrorCodes.Conflict, exception.ErrorCode);
+    }
+
+    [Fact]
+    public async Task StartLocationEncounterBattleAsync_SessionAlreadyHasActiveBattle_ThrowsConflict()
+    {
+        var (service, store, _, session, deck, enemy, _) = CreateScenario();
+        store.Battles.Add(new Battle { Id = 999, GameSessionId = session.Id, EnemyId = enemy.Id, Status = GameSessionStatus.InProgress });
+
+        var exception = await Assert.ThrowsAsync<DomainException>(() => service.StartLocationEncounterBattleAsync(
+            new StartLocationEncounterBattleRequestDto
+            {
+                GameSessionId = session.Id,
+                DeckId = deck.Id,
+                LocationId = LocationId.Ashtonia,
+                EnemyId = enemy.Id
+            }));
+
+        Assert.Equal(ErrorCodes.Conflict, exception.ErrorCode);
     }
 
     [Fact]
@@ -276,6 +343,17 @@ public class BattleServiceTests
         var playRules = new PlayRules(maxEnergyPerTurn: 5, allowOverdraft: false);
         var currentPlayerService = new FixedCurrentPlayerService(CurrentPlayerId);
 
+        var locationEncounterService = new LocationEncounterService(
+            new MockLocationEncounterRepository(store),
+            new MockLocationDefinitionRepository(store),
+            enemyRepository,
+            gameSessionRepository,
+            characterRepository,
+            new MockScenarioProgressRepository(store),
+            new MockPlayerQuestRepository(store),
+            battleRepository,
+            currentPlayerService);
+
         var service = new BattleService(
             battleRepository,
             battleDeckRepository,
@@ -288,7 +366,8 @@ public class BattleServiceTests
             engine,
             playRules,
             currentPlayerService,
-            new CombatExperienceCalculator(new ExperienceService(new LevelProgressionRules())));
+            new CombatExperienceCalculator(new ExperienceService(new LevelProgressionRules())),
+            locationEncounterService);
 
         return (service, store, engine, session, deck, enemy, player);
     }

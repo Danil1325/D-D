@@ -236,6 +236,8 @@ public static class DependencyInjection
         services.AddScoped<IScenarioProgressRepository, MockScenarioProgressRepository>();
         services.AddScoped<IStorySceneRepository, MockStorySceneRepository>();
         services.AddScoped<ILocationRepository, MockLocationRepository>();
+        services.AddScoped<ILocationDefinitionRepository, MockLocationDefinitionRepository>();
+        services.AddScoped<ILocationEncounterRepository, MockLocationEncounterRepository>();
 
         services.AddScoped<ICurrentPlayerService, MockCurrentPlayerService>();
         services.AddScoped<ICardService, CardService>();
@@ -247,8 +249,15 @@ public static class DependencyInjection
         services.AddSingleton<IPasswordHasher<Account>, PasswordHasher<Account>>();
         services.AddScoped<IAccountService, AccountService>();
 
-        // BattleService depends on Domain.Engine.Battle.IBattleEngine; the engine
-        // set it needs is registered in AddBattleTurnSystemServices, so it resolves.
+        // Registered here (rather than AddScenarioServices) because BattleService
+        // (below, same method) depends on it directly — keeping both in AddMockData
+        // means any composition that needs IBattleService stays self-sufficient
+        // without also requiring AddScenarioServices.
+        services.AddScoped<ILocationEncounterService, LocationEncounterService>();
+
+        // BattleService depends on Domain.Engine.Battle.IBattleEngine (the engine
+        // set it needs is registered in AddBattleTurnSystemServices) and on
+        // ILocationEncounterService (registered just above), so both must resolve.
         services.AddScoped<IBattleService, BattleService>();
         return services;
     }
