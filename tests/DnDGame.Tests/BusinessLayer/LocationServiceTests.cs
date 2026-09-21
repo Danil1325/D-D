@@ -3,8 +3,8 @@ using DnDGame.BusinessLayer.Common.Exceptions;
 using DnDGame.BusinessLayer.Dtos.Locations;
 using DnDGame.BusinessLayer.Services;
 using DnDGame.BusinessLayer.Services.Interfaces;
-using DnDGame.Domain.Engine.Common;
 using DnDGame.Domain.Engine.Locations;
+using DnDGame.Domain.Engine.Scenario;
 using DnDGame.Domain.Entities.Characters;
 using DnDGame.Domain.Entities.Game;
 using DnDGame.Domain.Entities.Locations;
@@ -18,6 +18,13 @@ namespace DnDGame.Tests.BusinessLayer;
 public class LocationServiceTests
 {
     private const int CurrentPlayerId = 1;
+    private const int TravelStartSceneId = 700001;
+    private const int TravelMisthavenSceneId = 700002;
+    private const int TravelWhisperingSceneId = 700003;
+    private const int TravelOakheavenSceneId = 700004;
+    private const int TravelSecondOakheavenSceneId = 700005;
+    private const int TravelChoiceId = 710001;
+    private const int TravelSecondChoiceId = 710002;
 
     // --- Catalogue reads ---
 
@@ -159,53 +166,7 @@ public class LocationServiceTests
     // --- Travel ---
 
     [Fact]
-    public async Task TravelToLocationAsync_FirstTravel_UnlocksHerosOverlookAndSetsItCurrent()
-    {
-        var (service, store, player) = CreateScenario();
-
-        var result = await service.TravelToLocationAsync(
-            new TravelToLocationRequest { PlayerId = CurrentPlayerId, LocationId = LocationId.HerosOverlook });
-
-        Assert.Equal(LocationStatus.Current, result.Status);
-        Assert.Equal("Hero's Overlook", result.LocationName);
-
-        var persisted = store.LocationProgresses.Single(p => p.PlayerId == player.Id && p.LocationId == LocationId.HerosOverlook);
-        Assert.Equal(LocationStatus.Current, persisted.Status);
-        Assert.True(persisted.Visited);
-    }
-
-    [Fact]
-    public async Task TravelToLocationAsync_RejectsALocationWhoseRequirementsAreNotMet()
-    {
-        var (service, _, _) = CreateScenario(characterLevel: 1);
-
-        var exception = await Assert.ThrowsAsync<DomainException>(() => service.TravelToLocationAsync(
-            new TravelToLocationRequest { PlayerId = CurrentPlayerId, LocationId = LocationId.DarkstormKeep }));
-
-        Assert.Equal(EngineErrorCodes.LocationRequirementNotMet, exception.ErrorCode);
-    }
-
-    [Fact]
-    public async Task TravelToLocationAsync_RevisitingAnAlreadyUnlockedLocation_JustMovesCurrent()
-    {
-        var (service, store, player) = CreateScenario();
-        store.LocationProgresses.Add(new LocationProgress
-        {
-            PlayerId = player.Id,
-            LocationId = LocationId.HerosOverlook,
-            Status = LocationStatus.Available
-        });
-
-        var result = await service.TravelToLocationAsync(
-            new TravelToLocationRequest { PlayerId = CurrentPlayerId, LocationId = LocationId.HerosOverlook });
-
-        Assert.Equal(LocationStatus.Current, result.Status);
-        var persisted = store.LocationProgresses.Single(p => p.PlayerId == player.Id && p.LocationId == LocationId.HerosOverlook);
-        Assert.Equal(LocationStatus.Current, persisted.Status);
-    }
-
-    [Fact]
-    public async Task TravelToLocationAsync_MovingToANewCurrentLocation_DemotesThePreviousOneToAvailable()
+    public async Task TravelToLocationAsync_ValidReachableLocation_UsesScenarioChoiceAndReturnsCurrentLocationAndScene()
     {
         var (service, store, player) = CreateScenario();
         store.LocationProgresses.Add(new LocationProgress
@@ -215,20 +176,100 @@ public class LocationServiceTests
             Status = LocationStatus.Current,
             Visited = true
         });
-        store.LocationProgresses.Add(new LocationProgress
-        {
-            PlayerId = player.Id,
-            LocationId = LocationId.MisthavenPort,
-            Status = LocationStatus.Available
-        });
+        SeedTravelScenario(
+            store,
+            Scene(TravelStartSceneId, LocationId.HerosOverlook,
+                Choice(TravelChoiceId, TravelMisthavenSceneId, consequence: new ChoiceConsequence
+                {
+                    StoryFlags = new Dictionary<string, bool> { ["travel_via_engine"] = true }
+                })),
+            Scene(TravelMisthavenSceneId, LocationId.MisthavenPort));
 
-        await service.TravelToLocationAsync(
+        var result = await service.TravelToLocationAsync(
             new TravelToLocationRequest { PlayerId = CurrentPlayerId, LocationId = LocationId.MisthavenPort });
+
+        Assert.Equal((int)LocationId.MisthavenPort, result.CurrentLocation.Id);
+        Assert.Equal(TravelMisthavenSceneId, result.CurrentScene.Id);
+        Assert.Equal((int)LocationId.MisthavenPort, result.CurrentScene.LocationId);
+
+        var progress = store.ScenarioProgresses.Single();
+        Assert.Equal(TravelMisthavenSceneId, progress.CurrentSceneId);
+        Assert.True(progress.StoryFlags["travel_via_engine"]);
 
         var herosOverlook = store.LocationProgresses.Single(p => p.LocationId == LocationId.HerosOverlook);
         var misthavenPort = store.LocationProgresses.Single(p => p.LocationId == LocationId.MisthavenPort);
         Assert.Equal(LocationStatus.Available, herosOverlook.Status);
         Assert.Equal(LocationStatus.Current, misthavenPort.Status);
+    }
+
+    [Fact]
+    public async Task TravelToLocationAsync_UnreachableLocation_IsRejectedAndLeavesScenarioProgressUnchanged()
+    {
+        var (service, store, _) = CreateScenario();
+        SeedTravelScenario(
+            store,
+            Scene(TravelStartSceneId, LocationId.HerosOverlook,
+                Choice(TravelChoiceId, TravelMisthavenSceneId)),
+            Scene(TravelMisthavenSceneId, LocationId.MisthavenPort));
+
+        var exception = await Assert.ThrowsAsync<DomainException>(() => service.TravelToLocationAsync(
+            new TravelToLocationRequest { PlayerId = CurrentPlayerId, LocationId = LocationId.DarkstormKeep }));
+
+        Assert.Equal(ErrorCodes.Conflict, exception.ErrorCode);
+        Assert.Equal(TravelStartSceneId, store.ScenarioProgresses.Single().CurrentSceneId);
+    }
+
+    [Fact]
+    public async Task TravelToLocationAsync_SameCurrentLocation_IsRejectedAndLeavesScenarioProgressUnchanged()
+    {
+        var (service, store, _) = CreateScenario();
+        SeedTravelScenario(
+            store,
+            Scene(TravelStartSceneId, LocationId.HerosOverlook,
+                Choice(TravelChoiceId, TravelMisthavenSceneId)),
+            Scene(TravelMisthavenSceneId, LocationId.MisthavenPort));
+
+        var exception = await Assert.ThrowsAsync<DomainException>(() => service.TravelToLocationAsync(
+            new TravelToLocationRequest { PlayerId = CurrentPlayerId, LocationId = LocationId.HerosOverlook }));
+
+        Assert.Equal(ErrorCodes.Conflict, exception.ErrorCode);
+        Assert.Equal(TravelStartSceneId, store.ScenarioProgresses.Single().CurrentSceneId);
+    }
+
+    [Fact]
+    public async Task TravelToLocationAsync_RaceGatedUnavailableChoice_IsRejected()
+    {
+        var (service, store, _) = CreateScenario(raceId: (int)RaceType.Human);
+        SeedTravelScenario(
+            store,
+            Scene(TravelStartSceneId, LocationId.HerosOverlook,
+                Choice(TravelChoiceId, TravelWhisperingSceneId, requirement: new ChoiceRequirement { RaceId = (int)RaceType.Elf })),
+            Scene(TravelWhisperingSceneId, LocationId.WhisperingWoods));
+
+        var exception = await Assert.ThrowsAsync<DomainException>(() => service.TravelToLocationAsync(
+            new TravelToLocationRequest { PlayerId = CurrentPlayerId, LocationId = LocationId.WhisperingWoods }));
+
+        Assert.Equal(ErrorCodes.Conflict, exception.ErrorCode);
+        Assert.Equal(TravelStartSceneId, store.ScenarioProgresses.Single().CurrentSceneId);
+    }
+
+    [Fact]
+    public async Task TravelToLocationAsync_AmbiguousLocationTransition_IsRejected()
+    {
+        var (service, store, _) = CreateScenario();
+        SeedTravelScenario(
+            store,
+            Scene(TravelStartSceneId, LocationId.HerosOverlook,
+                Choice(TravelChoiceId, TravelOakheavenSceneId),
+                Choice(TravelSecondChoiceId, TravelSecondOakheavenSceneId)),
+            Scene(TravelOakheavenSceneId, LocationId.Oakheaven),
+            Scene(TravelSecondOakheavenSceneId, LocationId.Oakheaven));
+
+        var exception = await Assert.ThrowsAsync<DomainException>(() => service.TravelToLocationAsync(
+            new TravelToLocationRequest { PlayerId = CurrentPlayerId, LocationId = LocationId.Oakheaven }));
+
+        Assert.Equal(ErrorCodes.Conflict, exception.ErrorCode);
+        Assert.Equal(TravelStartSceneId, store.ScenarioProgresses.Single().CurrentSceneId);
     }
 
     [Fact]
@@ -240,6 +281,56 @@ public class LocationServiceTests
             new TravelToLocationRequest { PlayerId = 999, LocationId = LocationId.HerosOverlook }));
 
         Assert.Equal(ErrorCodes.NotFound, exception.ErrorCode);
+    }
+
+    private static void SeedTravelScenario(InMemoryGameDataStore store, params StoryScene[] scenes)
+    {
+        store.StoryScenes.AddRange(scenes);
+        store.ScenarioProgresses.Add(new ScenarioProgress
+        {
+            GameSessionId = 1,
+            CurrentSceneId = TravelStartSceneId
+        });
+    }
+
+    private static StoryScene Scene(int id, LocationId locationId, params StoryChoice[] choices)
+    {
+        return new StoryScene
+        {
+            Id = id,
+            Act = 1,
+            Chapter = 1,
+            Title = $"Travel Scene {id}",
+            LocationId = (int)locationId,
+            BackgroundImage = locationId.ToString(),
+            Choices = choices.ToList()
+        };
+    }
+
+    private static StoryChoice Choice(
+        int id,
+        int nextSceneId,
+        ChoiceRequirement? requirement = null,
+        ChoiceConsequence? consequence = null)
+    {
+        var choice = new StoryChoice
+        {
+            Id = id,
+            Text = $"Travel Choice {id}",
+            NextSceneId = nextSceneId
+        };
+
+        if (requirement is not null)
+        {
+            choice.Requirements.Add(requirement);
+        }
+
+        if (consequence is not null)
+        {
+            choice.Consequences.Add(consequence);
+        }
+
+        return choice;
     }
 
     // --- Test scaffolding ---
@@ -279,6 +370,19 @@ public class LocationServiceTests
             new MockBattleRepository(store),
             new FixedCurrentPlayerService(CurrentPlayerId));
 
+        var scenarioService = new ScenarioService(
+            new ScenarioEngine(),
+            new MockCharacterRepository(store),
+            new MockGameSessionRepository(store),
+            new MockScenarioProgressRepository(store),
+            new MockStorySceneRepository(store),
+            new MockQuestRepository(store),
+            new MockPlayerQuestRepository(store),
+            new MockLocationRepository(store),
+            new ExplicitLocationUnlockService(
+                new MockLocationDefinitionRepository(store),
+                new MockLocationProgressRepository(store)));
+
         return new LocationService(
             new MockLocationDefinitionRepository(store),
             new MockLocationProgressRepository(store),
@@ -289,7 +393,9 @@ public class LocationServiceTests
             locationEncounterService,
             new LocationUnlockEngine(),
             new LocationRouteProvider(),
-            new FixedCurrentPlayerService(CurrentPlayerId));
+            new FixedCurrentPlayerService(CurrentPlayerId),
+            scenarioService,
+            new MockStorySceneRepository(store));
     }
 
     private sealed class FixedCurrentPlayerService : ICurrentPlayerService

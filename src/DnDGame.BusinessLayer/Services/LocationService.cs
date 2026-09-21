@@ -3,6 +3,7 @@ using System.Text;
 using DnDGame.BusinessLayer.Common.Errors;
 using DnDGame.BusinessLayer.Common.Exceptions;
 using DnDGame.BusinessLayer.Dtos.Locations;
+using DnDGame.BusinessLayer.Dtos.Scenarios;
 using DnDGame.BusinessLayer.Models;
 using DnDGame.BusinessLayer.Repositories.Interfaces;
 using DnDGame.BusinessLayer.Services.Interfaces;
@@ -39,6 +40,8 @@ public sealed class LocationService : ILocationService
     private readonly ILocationUnlockEngine _locationUnlockEngine;
     private readonly ILocationRouteProvider _locationRouteProvider;
     private readonly ICurrentPlayerService _currentPlayerService;
+    private readonly IScenarioService _scenarioService;
+    private readonly IStorySceneRepository _storySceneRepository;
 
     public LocationService(
         ILocationDefinitionRepository locationDefinitionRepository,
@@ -50,7 +53,9 @@ public sealed class LocationService : ILocationService
         ILocationEncounterService locationEncounterService,
         ILocationUnlockEngine locationUnlockEngine,
         ILocationRouteProvider locationRouteProvider,
-        ICurrentPlayerService currentPlayerService)
+        ICurrentPlayerService currentPlayerService,
+        IScenarioService scenarioService,
+        IStorySceneRepository storySceneRepository)
     {
         _locationDefinitionRepository = locationDefinitionRepository;
         _locationProgressRepository = locationProgressRepository;
@@ -62,6 +67,8 @@ public sealed class LocationService : ILocationService
         _locationUnlockEngine = locationUnlockEngine;
         _locationRouteProvider = locationRouteProvider;
         _currentPlayerService = currentPlayerService;
+        _scenarioService = scenarioService;
+        _storySceneRepository = storySceneRepository;
     }
 
     public async Task<IReadOnlyList<LocationSummaryDto>> GetAllLocationsAsync()
@@ -147,67 +154,79 @@ public sealed class LocationService : ILocationService
     {
         ArgumentNullException.ThrowIfNull(request);
         RequirePositiveId(request.PlayerId, "playerId");
+        RequirePositiveId((int)request.LocationId, "locationId");
         RequireDefinedLocation(request.LocationId);
 
         var character = await RequireCharacterForPlayerAsync(request.PlayerId);
-        var (context, progressByLocation) = await BuildUnlockContextAsync(character);
-        var definition = await RequireDefinitionAsync(request.LocationId);
+        await RequireDefinitionAsync(request.LocationId);
 
-        LocationUnlockResult outcome;
-        if (context.UnlockedLocationIds.Contains(request.LocationId))
+        var currentScene = await _scenarioService.GetCurrentAsync(request.PlayerId);
+        if (currentScene.LocationId == (int)request.LocationId)
         {
-            // Already unlocked: this is a plain re-visit, not a fresh unlock.
-            // ILocationUnlockEngine.UnlockLocation would reject it (already unlocked),
-            // so ask the engine only for the advisory data (available/next set) and
-            // move CurrentLocationId ourselves.
-            context.CurrentLocationId = request.LocationId;
-
-            var availableResult = _locationUnlockEngine.GetAvailableLocations(context);
-            if (!availableResult.Success || availableResult.Data is null)
-            {
-                throw new DomainException(
-                    availableResult.ErrorCode ?? EngineErrorCodes.LocationInvalidContext, availableResult.Message);
-            }
-
-            var nextResult = _locationUnlockEngine.GetRecommendedNextLocation(context);
-
-            outcome = new LocationUnlockResult
-            {
-                PlayerId = character.Id,
-                LocationId = request.LocationId,
-                Status = LocationStatus.Current,
-                HeroOverlookFinaleUnlocked = context.CompletedQuestIds.Contains(HeroOverlookFinaleQuestId),
-                AvailableLocationIds = availableResult.Data,
-                RecommendedNextLocationId = nextResult.Data
-            };
-        }
-        else
-        {
-            var unlockResult = _locationUnlockEngine.UnlockLocation(context, request.LocationId);
-            if (!unlockResult.Success || unlockResult.Data is null)
-            {
-                throw new DomainException(
-                    unlockResult.ErrorCode ?? EngineErrorCodes.LocationRequirementNotMet, unlockResult.Message);
-            }
-
-            outcome = unlockResult.Data;
+            throw new DomainException(
+                ErrorCodes.Conflict,
+                $"Player {request.PlayerId} is already at location {(int)request.LocationId}.");
         }
 
-        await SetCurrentLocationAsync(progressByLocation, character, request.LocationId);
+        var matchingChoices = await FindChoicesLeadingToLocationAsync(currentScene, request.LocationId);
+        if (matchingChoices.Count == 0)
+        {
+            throw new DomainException(
+                ErrorCodes.Conflict,
+                $"Location {(int)request.LocationId} is not reachable from the current scene.");
+        }
+
+        if (matchingChoices.Count > 1)
+        {
+            throw new DomainException(
+                ErrorCodes.Conflict,
+                $"Location {(int)request.LocationId} is reachable through more than one current choice.");
+        }
+
+        await _scenarioService.SelectChoiceAsync(new SelectChoiceRequest
+        {
+            PlayerId = request.PlayerId,
+            SceneId = currentScene.Id,
+            ChoiceId = matchingChoices[0].Id
+        });
+
+        var resultingScene = await _scenarioService.GetCurrentAsync(request.PlayerId);
+        var resultingLocationId = ToLocationId(resultingScene.LocationId);
+        var currentLocation = await GetLocationByIdAsync(resultingLocationId);
+
+        var progressByLocation = (await _locationProgressRepository.GetByPlayerIdAsync(character.Id))
+            .ToDictionary(progress => progress.LocationId);
+        await SetCurrentLocationAsync(progressByLocation, character, resultingLocationId);
 
         return new TravelToLocationResultDto
         {
-            PlayerId = outcome.PlayerId,
-            LocationId = outcome.LocationId,
-            LocationName = definition.Name,
-            Status = outcome.Status,
-            HeroOverlookFinaleUnlocked = outcome.HeroOverlookFinaleUnlocked,
-            AvailableLocationIds = outcome.AvailableLocationIds,
-            RecommendedNextLocationId = outcome.RecommendedNextLocationId
+            CurrentLocation = currentLocation,
+            CurrentScene = resultingScene
         };
     }
 
     // --- Context building ---
+
+    private async Task<IReadOnlyList<ChoiceDto>> FindChoicesLeadingToLocationAsync(
+        StorySceneDto currentScene,
+        LocationId locationId)
+    {
+        var matches = new List<ChoiceDto>();
+        foreach (var choice in currentScene.Choices.Where(choice => choice.NextSceneId.HasValue))
+        {
+            var destinationScene = await _storySceneRepository.GetByIdAsync(choice.NextSceneId!.Value)
+                ?? throw new DomainException(
+                    ErrorCodes.NotFound,
+                    $"Scene {choice.NextSceneId.Value} was not found in the catalog.");
+
+            if (destinationScene.LocationId == (int)locationId)
+            {
+                matches.Add(choice);
+            }
+        }
+
+        return matches;
+    }
 
     /// <summary>
     /// Builds the LocationUnlockContext ILocationUnlockEngine needs, sourced from the
@@ -463,6 +482,16 @@ public sealed class LocationService : ILocationService
         {
             throw new DomainException(ErrorCodes.ValidationError, $"Location {locationId} does not exist.");
         }
+    }
+
+    private static LocationId ToLocationId(int locationId)
+    {
+        if (!Enum.IsDefined(typeof(LocationId), locationId))
+        {
+            throw new DomainException(ErrorCodes.ValidationError, $"Location {locationId} does not exist.");
+        }
+
+        return (LocationId)locationId;
     }
 
     private static void RequirePositiveId(int id, string fieldName)

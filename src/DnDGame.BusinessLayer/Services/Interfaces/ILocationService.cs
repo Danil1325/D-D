@@ -33,8 +33,8 @@ public interface ILocationService
     Task<IReadOnlyList<LocationEnemyDto>> GetAvailableEnemiesAsync(LocationId locationId, int playerId, string? subLocation = null);
 
     /// <summary>
-    /// Moves a player to a location: unlocks it first via ILocationUnlockEngine if it
-    /// isn't already unlocked, then records it as the player's current location.
+    /// Moves a player only through a currently available scenario choice whose
+    /// destination scene belongs to the requested location.
     /// </summary>
     Task<TravelToLocationResultDto> TravelToLocationAsync(TravelToLocationRequest request);
 }
