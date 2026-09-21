@@ -7,6 +7,7 @@ using DnDGame.BusinessLayer.Services.Interfaces;
 using DnDGame.Domain.Engine.Scenario;
 using DnDGame.Domain.Entities.Characters;
 using DnDGame.Domain.Entities.Game;
+using DnDGame.Domain.Entities.Locations;
 using DnDGame.MockData;
 using DnDGame.MockData.Repositories;
 using Xunit;
@@ -170,6 +171,99 @@ public class ScenarioServiceTests
     }
 
     [Fact]
+    public async Task SelectChoice_WithExplicitLocationUnlock_ReturnsNewLocationIdAndPersistsProgress()
+    {
+        var scenario = CreateScenario();
+        var (scene, choice) = await StartAndGetOnlyChoiceAsync(scenario);
+        choice.Consequences.Add(new ChoiceConsequence
+        {
+            NewLocationIds = new List<int> { (int)LocationId.MisthavenPort }
+        });
+
+        var result = await scenario.Service.SelectChoiceAsync(new SelectChoiceRequest
+        {
+            PlayerId = PlayerId,
+            SceneId = scene.Id,
+            ChoiceId = choice.Id
+        });
+
+        Assert.Equal(new[] { (int)LocationId.MisthavenPort }, result.NewLocationIds);
+        var progress = Assert.Single(scenario.Store.LocationProgresses, progress =>
+            progress.PlayerId == PlayerId &&
+            progress.LocationId == LocationId.MisthavenPort);
+        Assert.Equal(LocationStatus.Available, progress.Status);
+    }
+
+    [Fact]
+    public async Task SelectChoice_WithAlreadyUnlockedLocation_ReturnsNoNewLocationIds()
+    {
+        var scenario = CreateScenario();
+        scenario.Store.LocationProgresses.Add(new LocationProgress
+        {
+            PlayerId = PlayerId,
+            LocationId = LocationId.MisthavenPort,
+            Status = LocationStatus.Available,
+            UnlockedAtLevel = 1
+        });
+        var (scene, choice) = await StartAndGetOnlyChoiceAsync(scenario);
+        choice.Consequences.Add(new ChoiceConsequence
+        {
+            NewLocationIds = new List<int> { (int)LocationId.MisthavenPort }
+        });
+
+        var result = await scenario.Service.SelectChoiceAsync(new SelectChoiceRequest
+        {
+            PlayerId = PlayerId,
+            SceneId = scene.Id,
+            ChoiceId = choice.Id
+        });
+
+        Assert.Empty(result.NewLocationIds);
+        Assert.Single(scenario.Store.LocationProgresses, progress =>
+            progress.PlayerId == PlayerId &&
+            progress.LocationId == LocationId.MisthavenPort);
+    }
+
+    [Fact]
+    public async Task SelectChoice_WithoutExplicitLocationUnlock_ReturnsEmptyNewLocationIds()
+    {
+        var scenario = CreateScenario();
+        var (scene, choice) = await StartAndGetOnlyChoiceAsync(scenario);
+
+        var result = await scenario.Service.SelectChoiceAsync(new SelectChoiceRequest
+        {
+            PlayerId = PlayerId,
+            SceneId = scene.Id,
+            ChoiceId = choice.Id
+        });
+
+        Assert.Empty(result.NewLocationIds);
+        Assert.Empty(scenario.Store.LocationProgresses);
+    }
+
+    [Fact]
+    public async Task SelectChoice_WhenChoiceIsRejected_DoesNotUnlockLocations()
+    {
+        var scenario = CreateScenario();
+        var (scene, choice) = await StartAndGetOnlyChoiceAsync(scenario);
+        choice.Consequences.Add(new ChoiceConsequence
+        {
+            NewLocationIds = new List<int> { (int)LocationId.MisthavenPort }
+        });
+
+        var exception = await Assert.ThrowsAsync<DomainException>(() => scenario.Service.SelectChoiceAsync(
+            new SelectChoiceRequest
+            {
+                PlayerId = PlayerId,
+                SceneId = scene.Id,
+                ChoiceId = 999999
+            }));
+
+        Assert.Equal(ErrorCodes.NotFound, exception.ErrorCode);
+        Assert.Empty(scenario.Store.LocationProgresses);
+    }
+
+    [Fact]
     public async Task SelectChoice_WithAStaleSceneId_Conflicts()
     {
         var scenario = CreateScenario();
@@ -229,6 +323,17 @@ public class ScenarioServiceTests
         return (service, store);
     }
 
+    private static async Task<(StorySceneDto Scene, StoryChoice Choice)> StartAndGetOnlyChoiceAsync(
+        (IScenarioService Service, InMemoryGameDataStore Store) scenario)
+    {
+        await scenario.Service.StartAsync(PlayerId);
+        var scene = await scenario.Service.GetCurrentAsync(PlayerId);
+        var choiceDto = Assert.Single(scene.Choices);
+        var seededScene = scenario.Store.StoryScenes.Single(candidate => candidate.Id == scene.Id);
+        var choice = seededScene.Choices.Single(candidate => candidate.Id == choiceDto.Id);
+        return (scene, choice);
+    }
+
     private static IScenarioService CreateService(InMemoryGameDataStore store)
     {
         return new ScenarioService(
@@ -239,6 +344,9 @@ public class ScenarioServiceTests
             new MockStorySceneRepository(store),
             new MockQuestRepository(store),
             new MockPlayerQuestRepository(store),
-            new MockLocationRepository(store));
+            new MockLocationRepository(store),
+            new ExplicitLocationUnlockService(
+                new MockLocationDefinitionRepository(store),
+                new MockLocationProgressRepository(store)));
     }
 }

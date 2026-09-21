@@ -21,7 +21,9 @@ public class ScenarioProgressDto
     public IReadOnlyDictionary<string, bool> StoryFlags { get; init; } = new Dictionary<string, bool>();
     public IReadOnlyCollection<int> NewLocationIds { get; init; } = Array.Empty<int>();
 
-    public static ScenarioProgressDto FromDomain(ScenarioProgress progress) => new()
+    public static ScenarioProgressDto FromDomain(
+        ScenarioProgress progress,
+        IEnumerable<int>? newLocationIds = null) => new()
     {
         GameSessionId = progress.GameSessionId,
         CurrentSceneId = progress.CurrentSceneId,
@@ -31,6 +33,7 @@ public class ScenarioProgressDto
         WarScore = progress.WarScore,
         CompanionLoyalty = new Dictionary<int, int>(progress.CompanionLoyalty),
         QuestProgress = new Dictionary<int, int>(progress.QuestProgress),
-        StoryFlags = new Dictionary<string, bool>(progress.StoryFlags)
+        StoryFlags = new Dictionary<string, bool>(progress.StoryFlags),
+        NewLocationIds = newLocationIds is null ? Array.Empty<int>() : newLocationIds.Distinct().ToList()
     };
 }
