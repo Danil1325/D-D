@@ -289,6 +289,7 @@ public static class DependencyInjection
         services.AddScoped<IScenarioService, ScenarioService>();
         services.AddScoped<IProgressionService, ProgressionService>();
         services.AddScoped<ILocationService, LocationService>();
+        services.AddScoped<IExplicitLocationUnlockService, ExplicitLocationUnlockService>();
         return services;
     }
 }
