@@ -118,6 +118,13 @@ public static class DependencyInjection
             mapper.Register(EngineErrorCodes.MissingCombatRule, StatusCodes.Status500InternalServerError);
             mapper.Register(EngineErrorCodes.RewardsAlreadyGranted, StatusCodes.Status409Conflict);
 
+            // Domain.Engine.Locations.ILocationUnlockEngine's EngineResult failures
+            // (see LocationService.TravelToLocationAsync).
+            mapper.Register(EngineErrorCodes.LocationInvalidContext, StatusCodes.Status400BadRequest);
+            mapper.Register(EngineErrorCodes.LocationRequirementNotMet, StatusCodes.Status400BadRequest);
+            mapper.Register(EngineErrorCodes.LocationAlreadyUnlocked, StatusCodes.Status409Conflict);
+            mapper.Register(EngineErrorCodes.LocationNotUnlocked, StatusCodes.Status409Conflict);
+
             // Account/auth codes (see AccountErrorCodes remarks for why login uses one
             // generic code instead of distinguishing "unknown account" from "wrong password").
             mapper.Register(AccountErrorCodes.EmailAlreadyInUse, StatusCodes.Status409Conflict);
@@ -281,6 +288,7 @@ public static class DependencyInjection
         services.AddScoped<IQuestService, QuestService>();
         services.AddScoped<IScenarioService, ScenarioService>();
         services.AddScoped<IProgressionService, ProgressionService>();
+        services.AddScoped<ILocationService, LocationService>();
         return services;
     }
 }
