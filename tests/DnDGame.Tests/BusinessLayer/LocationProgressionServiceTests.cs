@@ -74,6 +74,103 @@ public class LocationProgressionServiceTests
     }
 
     [Fact]
+    public async Task GetLocationEnemies_DarkstormKeep_ReturnsDemonSkeletonAndWraithTemplates()
+    {
+        var service = CreateService(CreateRouteStore(raceId: 1));
+
+        var enemies = await service.GetLocationEnemiesAsync(DarkstormKeepLocationId, PlayerId);
+
+        AssertEnemyIds(enemies, 1, 2, 3, 16, 17, 18, 19, 20, 21);
+    }
+
+    [Fact]
+    public async Task GetLocationEnemies_BonePeaks_ReturnsSkeletonTrollAndChimeraTemplates()
+    {
+        var service = CreateService(CreateRouteStore(raceId: 1));
+
+        var enemies = await service.GetLocationEnemiesAsync(TheBonePeaksLocationId, PlayerId);
+
+        AssertEnemyIds(enemies, 1, 2, 3, 10, 11, 12, 13, 14, 15);
+    }
+
+    [Fact]
+    public async Task GetLocationEnemies_WhisperingWoods_ReturnsGoblinSlimeAndWraithTemplates()
+    {
+        var service = CreateService(CreateRouteStore(raceId: 1));
+
+        var enemies = await service.GetLocationEnemiesAsync(WhisperingWoodsLocationId, PlayerId);
+
+        AssertEnemyIds(enemies, 4, 5, 6, 7, 8, 9, 19, 20, 21);
+    }
+
+    [Fact]
+    public async Task GetLocationEnemies_SafeLocationWithNoEnemyTypes_ReturnsEmpty()
+    {
+        var service = CreateService(CreateRouteStore(raceId: 1));
+
+        var enemies = await service.GetLocationEnemiesAsync(HerosOverlookLocationId, PlayerId);
+
+        Assert.Empty(enemies);
+    }
+
+    [Fact]
+    public async Task GetLocationEnemies_InvalidLocationId_FailsWithValidationError()
+    {
+        var service = CreateService(CreateRouteStore(raceId: 1));
+
+        var exception = await Assert.ThrowsAsync<DomainException>(() =>
+            service.GetLocationEnemiesAsync(0, PlayerId));
+
+        Assert.Equal(ErrorCodes.ValidationError, exception.ErrorCode);
+    }
+
+    [Fact]
+    public async Task GetLocationEnemies_UnknownLocation_FailsWithNotFound()
+    {
+        var service = CreateService(CreateRouteStore(raceId: 1));
+
+        var exception = await Assert.ThrowsAsync<DomainException>(() =>
+            service.GetLocationEnemiesAsync(999, PlayerId));
+
+        Assert.Equal(ErrorCodes.NotFound, exception.ErrorCode);
+    }
+
+    [Fact]
+    public async Task GetLocationEnemies_InvalidPlayerId_FailsWithValidationError()
+    {
+        var service = CreateService(CreateRouteStore(raceId: 1));
+
+        var exception = await Assert.ThrowsAsync<DomainException>(() =>
+            service.GetLocationEnemiesAsync(DarkstormKeepLocationId, 0));
+
+        Assert.Equal(ErrorCodes.ValidationError, exception.ErrorCode);
+    }
+
+    [Fact]
+    public async Task GetLocationEnemies_UnknownPlayer_FailsWithNotFound()
+    {
+        var service = CreateService(CreateRouteStore(raceId: 1));
+
+        var exception = await Assert.ThrowsAsync<DomainException>(() =>
+            service.GetLocationEnemiesAsync(DarkstormKeepLocationId, 999));
+
+        Assert.Equal(ErrorCodes.NotFound, exception.ErrorCode);
+    }
+
+    [Fact]
+    public async Task GetLocationEnemies_DuplicateEnemyMatches_AreReturnedOnce()
+    {
+        var store = CreateRouteStore(raceId: 1);
+        store.Enemies.Add(store.Enemies.Single(enemy => enemy.Id == 16));
+        var service = CreateService(store);
+
+        var enemies = await service.GetLocationEnemiesAsync(DarkstormKeepLocationId, PlayerId);
+
+        AssertEnemyIds(enemies, 1, 2, 3, 16, 17, 18, 19, 20, 21);
+        Assert.Equal(enemies.Count, enemies.Select(enemy => enemy.Id).Distinct().Count());
+    }
+
+    [Fact]
     public async Task TravelToLocation_ReachableDestination_AdvancesAndReturnsCurrentLocationAndScene()
     {
         var store = CreateTravelStore();
@@ -524,7 +621,8 @@ public class LocationProgressionServiceTests
             storySceneRepository,
             characterRepository,
             gameSessionRepository,
-            scenarioProgressRepository);
+            scenarioProgressRepository,
+            new MockEnemyRepository(store));
     }
 
     private static InMemoryGameDataStore CreateTravelStore()
@@ -675,6 +773,12 @@ public class LocationProgressionServiceTests
     private static LocationStatusDto FindStatus(IReadOnlyList<LocationStatusDto> statuses, int locationId)
     {
         return Assert.Single(statuses, status => status.LocationId == locationId);
+    }
+
+    private static void AssertEnemyIds(IReadOnlyList<LocationEnemyDto> enemies, params int[] expectedIds)
+    {
+        Assert.Equal(expectedIds, enemies.Select(enemy => enemy.Id).ToArray());
+        Assert.All(enemies, enemy => Assert.False(string.IsNullOrWhiteSpace(enemy.Name)));
     }
 
     private static IReadOnlyList<string> ResolveLocationNames(IReadOnlyList<int> locationIds)

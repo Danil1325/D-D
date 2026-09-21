@@ -37,6 +37,7 @@ public class LocationProgressionService : ILocationProgressionService
     private readonly ICharacterRepository _characterRepository;
     private readonly IGameSessionRepository _gameSessionRepository;
     private readonly IScenarioProgressRepository _progressRepository;
+    private readonly IEnemyRepository _enemyRepository;
 
     public LocationProgressionService(
         ILocationRepository locationRepository,
@@ -44,7 +45,8 @@ public class LocationProgressionService : ILocationProgressionService
         IStorySceneRepository sceneRepository,
         ICharacterRepository characterRepository,
         IGameSessionRepository gameSessionRepository,
-        IScenarioProgressRepository progressRepository)
+        IScenarioProgressRepository progressRepository,
+        IEnemyRepository enemyRepository)
     {
         _locationRepository = locationRepository;
         _scenarioService = scenarioService;
@@ -52,6 +54,7 @@ public class LocationProgressionService : ILocationProgressionService
         _characterRepository = characterRepository;
         _gameSessionRepository = gameSessionRepository;
         _progressRepository = progressRepository;
+        _enemyRepository = enemyRepository;
     }
 
     public async Task<IReadOnlyList<LocationSummaryDto>> GetAllLocationsAsync()
@@ -66,6 +69,38 @@ public class LocationProgressionService : ILocationProgressionService
             ?? throw new DomainException(ErrorCodes.NotFound, $"Location {locationId} was not found.");
 
         return LocationDetailsDto.FromDomain(location);
+    }
+
+    public async Task<IReadOnlyList<LocationEnemyDto>> GetLocationEnemiesAsync(int locationId, int playerId)
+    {
+        var validation = ValidationResult.Combine(
+            RequestValidationHelpers.RequirePositiveId(locationId, nameof(locationId)),
+            RequestValidationHelpers.RequirePositiveId(playerId, nameof(playerId)));
+
+        if (!validation.IsValid)
+        {
+            throw new DomainException(ErrorCodes.ValidationError, string.Join(" ", validation.Errors));
+        }
+
+        var location = await _locationRepository.GetByIdAsync(locationId)
+            ?? throw new DomainException(ErrorCodes.NotFound, $"Location {locationId} was not found.");
+
+        await RequireCharacterAsync(playerId);
+
+        var possibleFamilies = location.PossibleEnemyTypes.ToHashSet();
+        if (possibleFamilies.Count == 0)
+        {
+            return Array.Empty<LocationEnemyDto>();
+        }
+
+        var enemies = await _enemyRepository.GetAllAsync();
+        return enemies
+            .Where(enemy => possibleFamilies.Contains(enemy.Family))
+            .GroupBy(enemy => enemy.Id)
+            .Select(group => group.First())
+            .OrderBy(enemy => enemy.Id)
+            .Select(LocationEnemyDto.FromDomain)
+            .ToList();
     }
 
     public async Task<TravelToLocationResultDto> TravelToLocationAsync(TravelToLocationRequestDto request)

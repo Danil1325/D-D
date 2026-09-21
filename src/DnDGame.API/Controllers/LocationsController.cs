@@ -32,6 +32,13 @@ public class LocationsController : ControllerBase
         return Ok(result);
     }
 
+    [HttpGet("{locationId:int}/enemies")]
+    public async Task<ActionResult<IReadOnlyList<LocationEnemyDto>>> GetEnemies(int locationId, [FromQuery] int playerId)
+    {
+        var result = await _locationProgressionService.GetLocationEnemiesAsync(locationId, playerId);
+        return Ok(result);
+    }
+
     [HttpPost("travel")]
     public async Task<ActionResult<TravelToLocationResultDto>> Travel([FromBody] TravelToLocationRequestDto request)
     {
