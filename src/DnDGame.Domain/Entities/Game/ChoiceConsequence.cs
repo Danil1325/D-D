@@ -22,4 +22,7 @@ public class ChoiceConsequence
 
     /// <summary>Flag values to assign, including false to clear a flag.</summary>
     public Dictionary<string, bool> StoryFlags { get; set; } = new();
+
+    /// <summary>Explicit location unlock ids authored on this consequence.</summary>
+    public ICollection<int> NewLocationIds { get; set; } = new List<int>();
 }

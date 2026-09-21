@@ -17,4 +17,7 @@ public class QuestReward
 
     /// <summary>Signed change to the scenario's war score.</summary>
     public int WarScore { get; set; }
+
+    /// <summary>Explicit location unlock ids authored on this reward.</summary>
+    public ICollection<int> NewLocationIds { get; set; } = new List<int>();
 }

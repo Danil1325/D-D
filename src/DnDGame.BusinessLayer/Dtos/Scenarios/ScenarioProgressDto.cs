@@ -19,6 +19,7 @@ public class ScenarioProgressDto
     public IReadOnlyDictionary<int, int> CompanionLoyalty { get; init; } = new Dictionary<int, int>();
     public IReadOnlyDictionary<int, int> QuestProgress { get; init; } = new Dictionary<int, int>();
     public IReadOnlyDictionary<string, bool> StoryFlags { get; init; } = new Dictionary<string, bool>();
+    public IReadOnlyCollection<int> NewLocationIds { get; init; } = Array.Empty<int>();
 
     public static ScenarioProgressDto FromDomain(ScenarioProgress progress) => new()
     {
