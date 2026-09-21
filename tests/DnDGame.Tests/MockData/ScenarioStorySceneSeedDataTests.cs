@@ -67,6 +67,66 @@ public class ScenarioStorySceneSeedDataTests
     }
 
     [Fact]
+    public void AuthoredLocationUnlocks_RacialOpeningChoicesUnlockExpectedLocations()
+    {
+        var store = CreateStore();
+
+        AssertChoiceUnlocks(store, sceneId: 1205, choiceId: 90012, 7);
+        AssertChoiceUnlocks(store, sceneId: 1205, choiceId: 90013, 1);
+        AssertChoiceUnlocks(store, sceneId: 1205, choiceId: 90014, 4);
+        AssertChoiceUnlocks(store, sceneId: 1205, choiceId: 90015, 6);
+    }
+
+    [Fact]
+    public void AuthoredLocationUnlocks_NonHumanConvergenceUnlocksMisthavenAndHumanDoesNot()
+    {
+        var store = CreateStore();
+
+        AssertChoiceUnlocks(store, sceneId: 1212, choiceId: 90020, 4);
+        AssertChoiceUnlocks(store, sceneId: 1222, choiceId: 90025, 4);
+        AssertChoiceUnlocks(store, sceneId: 1242, choiceId: 90035, 4);
+        AssertChoiceUnlocks(store, sceneId: 1232, choiceId: 90030);
+    }
+
+    [Fact]
+    public void AuthoredLocationUnlocks_OakheavenChoicesUnlockOakheaven()
+    {
+        var store = CreateStore();
+
+        AssertChoiceUnlocks(store, sceneId: 2015, choiceId: 90048, 5);
+        AssertChoiceUnlocks(store, sceneId: 2015, choiceId: 90049, 5);
+        AssertChoiceUnlocks(store, sceneId: 2015, choiceId: 90050, 5);
+    }
+
+    [Fact]
+    public void AuthoredLocationUnlocks_FragmentLocationsAreSequential()
+    {
+        var store = CreateStore();
+
+        AssertChoiceUnlocks(store, sceneId: 4100, choiceId: 90070, 1);
+        AssertChoiceUnlocks(store, sceneId: 4028, choiceId: 90076, 7);
+        AssertChoiceUnlocks(store, sceneId: 4029, choiceId: 90082, 6);
+    }
+
+    [Fact]
+    public void AuthoredLocationUnlocks_DarkstormTransitionChoicesUnlockDarkstormKeep()
+    {
+        var store = CreateStore();
+
+        AssertChoiceUnlocks(store, sceneId: 4114, choiceId: 90092, 2);
+        AssertChoiceUnlocks(store, sceneId: 4115, choiceId: 90093, 2);
+        AssertChoiceUnlocks(store, sceneId: 4116, choiceId: 90094, 2);
+    }
+
+    [Fact]
+    public void AuthoredLocationUnlocks_FinalHeroOverlookReturnHasNoLocationUnlock()
+    {
+        var store = CreateStore();
+
+        AssertChoiceUnlocks(store, sceneId: 5013, choiceId: 90133);
+    }
+
+    [Fact]
     public void EveryNonFinalScene_CanAdvanceAndEveryForkTargetsTheSameChapterOrLater()
     {
         var store = CreateStore();
@@ -220,5 +280,20 @@ public class ScenarioStorySceneSeedDataTests
             .Except(new[] { 3005, 6107, 4112, 4113, 4115, 4116 }).ToList();
         Assert.Empty(unreachable);
         Assert.Contains(choiceTargets, target => target == 6101);
+    }
+
+    private static void AssertChoiceUnlocks(
+        InMemoryGameDataStore store,
+        int sceneId,
+        int choiceId,
+        params int[] expectedLocationIds)
+    {
+        var scene = Assert.Single(store.StoryScenes, scene => scene.Id == sceneId);
+        var choice = Assert.Single(scene.Choices, choice => choice.Id == choiceId);
+        var actualLocationIds = choice.Consequences
+            .SelectMany(consequence => consequence.NewLocationIds)
+            .ToList();
+
+        Assert.Equal(expectedLocationIds, actualLocationIds);
     }
 }

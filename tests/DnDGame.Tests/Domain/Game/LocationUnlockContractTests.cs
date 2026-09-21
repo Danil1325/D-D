@@ -37,15 +37,12 @@ public class LocationUnlockContractTests
     }
 
     [Fact]
-    public void ExplicitUnlockContracts_DefaultToEmptyForExistingSeedData()
+    public void ExplicitUnlockContracts_DefaultToEmptyAndSeededQuestRewardsStayEmpty()
     {
         var store = MockDataBootstrapper.CreateSeededStore();
 
         Assert.Empty(new ChoiceConsequence().NewLocationIds);
         Assert.Empty(new QuestReward().NewLocationIds);
-        Assert.All(
-            store.StoryScenes.SelectMany(scene => scene.Choices).SelectMany(choice => choice.Consequences),
-            consequence => Assert.Empty(consequence.NewLocationIds));
         Assert.All(
             store.Quests.SelectMany(quest => quest.Rewards),
             reward => Assert.Empty(reward.NewLocationIds));
