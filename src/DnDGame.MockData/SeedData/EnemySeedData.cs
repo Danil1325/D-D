@@ -4,15 +4,20 @@ using DnDGame.Domain.Enums;
 namespace DnDGame.MockData.SeedData;
 
 /// <summary>
-/// Seeds all 21 enemies (7 families x 3 tiers) confirmed from the reference images.
-/// Stats escalate per tier within each family; exact values are placeholders (TBD,
-/// same as the race attribute ranges) but internally consistent — roughly 1.5x per
-/// tier step, with each family's baseline reflecting its relative danger.
+/// Seeds the 21 enemies (7 families x 3 tiers) confirmed from the reference images,
+/// plus 6 named campaign bosses (Ids 22-27) added for BACK-LOC-05's location encounter
+/// pools. Stats for the original 21 escalate per tier within each family; exact values
+/// are placeholders (TBD, same as the race attribute ranges) but internally consistent
+/// — roughly 1.5x per tier step, with each family's baseline reflecting its relative
+/// danger. The 6 named bosses are separate, unique placeholders (see their own
+/// SpecialAbilityText) not yet balanced against that progression.
 ///
 /// ImagePath values match the actual project asset filenames exactly, including
 /// inconsistent casing/spacing between the display Name and the file itself (e.g.
 /// "Lord Goblin" -> "Lordgoblin.png", "Warrior Troll" -> "war_troll.png") — these
-/// are the real filenames, not a naming-convention guess.
+/// are the real filenames, not a naming-convention guess. The 6 boss ImagePath values
+/// are guesses following that same convention and have not been verified against
+/// real asset files.
 /// </summary>
 internal static class EnemySeedData
 {
@@ -53,7 +58,18 @@ internal static class EnemySeedData
             // Wraith family
             new Enemy { Id = 19, Name = "Phantom", Family = EnemyFamily.Wraith, Tier = EnemyTier.Base, Description = "A restless, half-formed spirit.", ImagePath = "enemies/Phantom.png", Health = 12, Defense = 10, AttackBonus = 3, DamageAmount = 4, XpReward = 14, SpecialAbilityText = "None." },
             new Enemy { Id = 20, Name = "Wraith", Family = EnemyFamily.Wraith, Tier = EnemyTier.Evolved, Description = "A malevolent spirit, cold to the touch.", ImagePath = "enemies/Wraith.png", Health = 19, Defense = 13, AttackBonus = 5, DamageAmount = 7, XpReward = 26, SpecialAbilityText = "None." },
-            new Enemy { Id = 21, Name = "Dread Wraith", Family = EnemyFamily.Wraith, Tier = EnemyTier.Elite, Description = "A crowned, ancient horror wreathed in dark flame.", ImagePath = "enemies/Dread_Wraith.png", Health = 30, Defense = 16, AttackBonus = 8, DamageAmount = 10, XpReward = 50, SpecialAbilityText = "None." }
+            new Enemy { Id = 21, Name = "Dread Wraith", Family = EnemyFamily.Wraith, Tier = EnemyTier.Elite, Description = "A crowned, ancient horror wreathed in dark flame.", ImagePath = "enemies/Dread_Wraith.png", Health = 30, Defense = 16, AttackBonus = 8, DamageAmount = 10, XpReward = 50, SpecialAbilityText = "None." },
+
+            // Named campaign bosses (BACK-LOC-05) — referenced by LocationEncounterSeedData as
+            // Boss-tier encounters. PLACEHOLDER stats only: these are unique, above-Elite bosses
+            // with no reference card, so values are rough extrapolations above their family's
+            // existing Elite entry. To be finalized later — do not treat as balanced.
+            new Enemy { Id = 22, Name = "The Herald", Family = EnemyFamily.Wraith, Tier = EnemyTier.Boss, Description = "A spectral herald of the coming ruin. Placeholder lore.", ImagePath = "enemies/The_Herald.png", Health = 55, Defense = 20, AttackBonus = 11, DamageAmount = 15, XpReward = 100, SpecialAbilityText = "PLACEHOLDER — stats/ability to be finalized." },
+            new Enemy { Id = 23, Name = "Vharruk", Family = EnemyFamily.Demon, Tier = EnemyTier.Boss, Description = "A demonic power behind the ruin. Placeholder lore.", ImagePath = "enemies/Vharruk.png", Health = 60, Defense = 21, AttackBonus = 12, DamageAmount = 16, XpReward = 110, SpecialAbilityText = "PLACEHOLDER — stats/ability to be finalized." },
+            new Enemy { Id = 24, Name = "Karnyx", Family = EnemyFamily.Chimera, Tier = EnemyTier.Boss, Description = "A monstrous chimeric warlord. Placeholder lore.", ImagePath = "enemies/Karnyx.png", Health = 50, Defense = 19, AttackBonus = 10, DamageAmount = 13, XpReward = 90, SpecialAbilityText = "PLACEHOLDER — stats/ability to be finalized." },
+            new Enemy { Id = 25, Name = "Nerath-Dur the Lich", Family = EnemyFamily.Skeleton, Tier = EnemyTier.Boss, Description = "An ancient lich-king of the Bone Peaks. Placeholder lore.", ImagePath = "enemies/Nerath_Dur.png", Health = 48, Defense = 18, AttackBonus = 10, DamageAmount = 13, XpReward = 90, SpecialAbilityText = "PLACEHOLDER — stats/ability to be finalized." },
+            new Enemy { Id = 26, Name = "Grommash-Vurr the Troll King", Family = EnemyFamily.Troll, Tier = EnemyTier.Boss, Description = "A rival troll king ruling the Bone Peaks. Placeholder lore.", ImagePath = "enemies/Grommash_Vurr.png", Health = 52, Defense = 19, AttackBonus = 11, DamageAmount = 14, XpReward = 95, SpecialAbilityText = "PLACEHOLDER — stats/ability to be finalized." },
+            new Enemy { Id = 27, Name = "Greater Demon Mayor", Family = EnemyFamily.Demon, Tier = EnemyTier.Boss, Description = "Oakheaven's corrupted mayor, transformed by fiendish influence. Placeholder lore.", ImagePath = "enemies/Greater_Demon_Mayor.png", Health = 45, Defense = 17, AttackBonus = 9, DamageAmount = 12, XpReward = 80, SpecialAbilityText = "PLACEHOLDER — stats/ability to be finalized." }
         });
     }
 }
