@@ -1,4 +1,5 @@
 using DnDGame.Domain.Entities.Game;
+using DnDGame.Domain.Entities.Locations;
 using DnDGame.Domain.Enums;
 
 namespace DnDGame.MockData.SeedData;
@@ -99,12 +100,80 @@ internal static class LocationSeedData
                 Name = "Whispering Woods",
                 Description = "A tangled forest of murmuring trees, hidden trails and abandoned camps haunted by raiders and spirits.",
                 RecommendedMinimumLevel = 2,
-                BackgroundImage = "Whispering_Woods",
+                BackgroundImage = "Wispering_Woods",
                 AvailableMainQuestIds = new List<int>(),
                 AvailableSideQuestIds = new List<int>(),
                 PossibleEnemyTypes = new List<EnemyFamily> { EnemyFamily.Goblin, EnemyFamily.Slime, EnemyFamily.Wraith },
                 IsSafeLocation = false
             }
         });
+    }
+
+    /// <summary>
+    /// Seeds the location catalogue used by the dedicated location-progression
+    /// model. This is intentionally run after quest seed data so every quest ID
+    /// is copied from the scenario's authoritative location catalogue.
+    /// Encounter IDs refer to EnemySeedData IDs until a separate encounter model
+    /// is introduced.
+    /// </summary>
+    public static void SeedDefinitions(InMemoryGameDataStore store)
+    {
+        store.LocationDefinitions.AddRange(new[]
+        {
+            Definition(store, LocationId.HerosOverlook, "Hero's Overlook",
+                "A sheltered memorial above the valley where travelers rest and plan the next journey.",
+                "Heros_Overlook", 1, 10, true, Array.Empty<int>(),
+                new[] { "PrologueUnlocked", "FinaleUnlocked" }),
+            Definition(store, LocationId.WhisperingWoods, "Whispering Woods",
+                "A tangled forest of murmuring trees, hidden trails, raiders and restless spirits.",
+                "Wispering_Woods", 1, 8, false, new[] { 4, 7, 19 }),
+            Definition(store, LocationId.Ashtonia, "Ashtonia",
+                "A fortified town of guild business, old clan grudges and the first Crown fragment route.",
+                "Ashtonia", 1, 8, true, Array.Empty<int>()),
+            Definition(store, LocationId.MisthavenPort, "Misthaven Port",
+                "A guarded harbor and safe Guild hub where sailors, merchants and adventurers trade news.",
+                "Misthaven_Port", 2, 5, true, Array.Empty<int>()),
+            Definition(store, LocationId.Oakheaven, "Oakheaven",
+                "A woodland settlement beneath ancient oaks, threatened by a hidden possession network.",
+                "Oakheaven", 3, 6, true, Array.Empty<int>()),
+            Definition(store, LocationId.TheBonePeaks, "The Bone Peaks",
+                "Jagged mountain passes, ancient remains and the sealed halls of Karag-Dur.",
+                "The_Bone_Peaks", 1, 8, false, new[] { 1, 10, 13 },
+                new[] { "ExteriorUnlocked", "KaragDurUnlocked" }),
+            Definition(store, LocationId.DarkstormKeep, "Darkstorm Keep",
+                "A storm-battered fortress of demons and undead, reached only after the Crown is restored.",
+                "Darkstorm_Keep", 8, 10, false, new[] { 1, 16, 19 },
+                unlockRequirement: new LocationUnlockRequirement
+                {
+                    RequiredFragmentCount = 3,
+                    RequiredQuestIds = new List<int> { 10 }
+                })
+        });
+    }
+
+    private static LocationDefinition Definition(
+        InMemoryGameDataStore store, LocationId id, string name, string description, string backgroundImage,
+        int minimumLevel, int maximumLevel, bool isSafeLocation, int[] encounterIds,
+        string[]? specialFlags = null, LocationUnlockRequirement? unlockRequirement = null)
+    {
+        var scenarioLocation = storeLocation(id);
+        return new LocationDefinition
+        {
+            Id = id,
+            Name = name,
+            Description = description,
+            BackgroundImage = backgroundImage,
+            RecommendedMinimumLevel = minimumLevel,
+            RecommendedMaximumLevel = maximumLevel,
+            IsSafeLocation = isSafeLocation,
+            MainQuestIds = scenarioLocation.AvailableMainQuestIds.ToList(),
+            SideQuestIds = scenarioLocation.AvailableSideQuestIds.ToList(),
+            EncounterIds = encounterIds.ToList(),
+            SpecialFlags = specialFlags?.ToList() ?? new List<string>(),
+            UnlockRequirement = unlockRequirement ?? new LocationUnlockRequirement()
+        };
+
+        Location storeLocation(LocationId locationId) =>
+            store.Locations.Single(location => location.Id == (int)locationId);
     }
 }

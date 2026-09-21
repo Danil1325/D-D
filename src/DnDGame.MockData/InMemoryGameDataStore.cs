@@ -35,6 +35,7 @@ public class InMemoryGameDataStore
     public List<Talent> Talents { get; } = new();
     public List<Enemy> Enemies { get; } = new();
     public List<Location> Locations { get; } = new();
+    public List<LocationDefinition> LocationDefinitions { get; } = new();
     public List<LocationEncounterDefinition> LocationEncounterDefinitions { get; } = new();
     public List<Quest> Quests { get; } = new();
     public List<StoryScene> StoryScenes { get; } = new();

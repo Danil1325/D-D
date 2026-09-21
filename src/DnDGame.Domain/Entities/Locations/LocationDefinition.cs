@@ -17,4 +17,10 @@ public class LocationDefinition
     public ICollection<int> MainQuestIds { get; set; } = new List<int>();
     public ICollection<int> SideQuestIds { get; set; } = new List<int>();
     public ICollection<int> EncounterIds { get; set; } = new List<int>();
+
+    /// <summary>Named story states exposed by this location's scenario content.</summary>
+    public ICollection<string> SpecialFlags { get; set; } = new List<string>();
+
+    /// <summary>Conditions required before the location may be made available.</summary>
+    public LocationUnlockRequirement UnlockRequirement { get; set; } = new();
 }
