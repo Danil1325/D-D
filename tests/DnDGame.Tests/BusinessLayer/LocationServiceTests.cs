@@ -22,58 +22,57 @@ public class LocationServiceTests
     // --- Catalogue reads ---
 
     [Fact]
-    public async Task GetAllLocationsAsync_ReturnsAllSevenLocations_LockedByDefault()
+    public async Task GetAllLocationsAsync_ReturnsFrontendSummaryShape()
     {
         var (service, _, _) = CreateScenario();
 
         var locations = await service.GetAllLocationsAsync();
 
         Assert.Equal(7, locations.Count);
-        Assert.All(locations, location => Assert.Equal(LocationStatus.Locked, location.Status));
-        Assert.All(locations, location => Assert.False(location.IsCurrent));
+        var herosOverlook = locations.Single(location => location.Id == (int)LocationId.HerosOverlook);
+        Assert.Equal("heros-overlook", herosOverlook.Slug);
+        Assert.Equal("Hero's Overlook", herosOverlook.Name);
+        Assert.Equal(1, herosOverlook.RecommendedMinimumLevel);
+        Assert.False(string.IsNullOrWhiteSpace(herosOverlook.BackgroundImage));
+        Assert.True(herosOverlook.IsSafeLocation);
     }
 
     [Fact]
-    public async Task GetAllLocationsAsync_RecommendsHerosOverlookForAFreshCharacter()
+    public async Task GetLocationByIdAsync_ReturnsFrontendDetailsShape()
     {
         var (service, _, _) = CreateScenario();
 
-        var locations = await service.GetAllLocationsAsync();
-
-        var herosOverlook = locations.Single(location => location.Id == LocationId.HerosOverlook);
-        Assert.True(herosOverlook.IsRecommendedNext);
-    }
-
-    [Fact]
-    public async Task GetLocationByIdAsync_ReflectsPersistedProgress()
-    {
-        var (service, store, player) = CreateScenario();
-        store.LocationProgresses.Add(new LocationProgress
-        {
-            PlayerId = player.Id,
-            LocationId = LocationId.HerosOverlook,
-            Status = LocationStatus.Current,
-            Visited = true,
-            UnlockedAtLevel = 1
-        });
-
         var details = await service.GetLocationByIdAsync(LocationId.HerosOverlook);
 
-        Assert.Equal(LocationStatus.Current, details.Status);
-        Assert.True(details.IsCurrent);
-        Assert.True(details.Visited);
+        Assert.Equal((int)LocationId.HerosOverlook, details.Id);
+        Assert.Equal("heros-overlook", details.Slug);
+        Assert.Equal("Hero's Overlook", details.Name);
+        Assert.False(string.IsNullOrWhiteSpace(details.Description));
+        Assert.Equal(1, details.RecommendedMinimumLevel);
+        Assert.False(string.IsNullOrWhiteSpace(details.BackgroundImage));
+        Assert.True(details.IsSafeLocation);
     }
 
     [Fact]
-    public async Task GetLocationByIdAsync_ThrowsNotFound_ForCurrentPlayerWithNoCharacter()
+    public async Task GetLocationByIdAsync_DoesNotRequireCurrentPlayerProgress()
     {
         var store = MockDataBootstrapper.CreateSeededStore();
         var service = CreateService(store);
 
-        var exception = await Assert.ThrowsAsync<DomainException>(
-            () => service.GetLocationByIdAsync(LocationId.HerosOverlook));
+        var details = await service.GetLocationByIdAsync(LocationId.HerosOverlook);
 
-        Assert.Equal(ErrorCodes.NotFound, exception.ErrorCode);
+        Assert.Equal((int)LocationId.HerosOverlook, details.Id);
+    }
+
+    [Fact]
+    public async Task GetLocationByIdAsync_InvalidLocation_FailsWithValidationError()
+    {
+        var (service, _, _) = CreateScenario();
+
+        var exception = await Assert.ThrowsAsync<DomainException>(
+            () => service.GetLocationByIdAsync((LocationId)999));
+
+        Assert.Equal(ErrorCodes.ValidationError, exception.ErrorCode);
     }
 
     // --- Player-scoped progress / route ---
@@ -92,9 +91,13 @@ public class LocationServiceTests
 
         var progress = await service.GetProgressForPlayerAsync(CurrentPlayerId);
 
-        Assert.Equal(player.Id, progress.PlayerId);
-        Assert.Equal(LocationId.HerosOverlook, progress.CurrentLocationId);
-        Assert.Equal(7, progress.Locations.Count);
+        Assert.Equal(7, progress.Count);
+        var herosOverlook = progress.Single(location => location.LocationId == (int)LocationId.HerosOverlook);
+        Assert.Equal("Hero's Overlook", herosOverlook.LocationName);
+        Assert.Equal("Current", herosOverlook.Status);
+        Assert.Equal(1, herosOverlook.RecommendedLevel);
+        Assert.True(herosOverlook.IsCurrent);
+        Assert.False(herosOverlook.IsCompleted);
     }
 
     [Fact]
@@ -115,9 +118,15 @@ public class LocationServiceTests
 
         var route = await service.GetRouteForPlayerAsync(CurrentPlayerId);
 
-        Assert.Equal(RaceType.Dwarf, route.Race);
-        Assert.Equal(LocationId.HerosOverlook, route.Steps.OrderBy(step => step.Order).First().LocationId);
-        Assert.Contains(route.Steps, step => step.LocationId == LocationId.TheBonePeaks && step.RouteSegment == "Exterior");
+        Assert.Equal((int)LocationId.HerosOverlook, route.OrderBy(step => step.Order).First().LocationId);
+        Assert.Contains(route, step => step.LocationId == (int)LocationId.TheBonePeaks);
+        Assert.All(route, step =>
+        {
+            Assert.True(step.Order > 0);
+            Assert.False(string.IsNullOrWhiteSpace(step.LocationName));
+            Assert.False(string.IsNullOrWhiteSpace(step.Status));
+            Assert.True(step.RecommendedLevel > 0);
+        });
     }
 
     // --- Enemies (delegates to ILocationEncounterService) ---
@@ -140,7 +149,11 @@ public class LocationServiceTests
         var enemies = await service.GetAvailableEnemiesAsync(LocationId.WhisperingWoods, CurrentPlayerId);
 
         Assert.NotEmpty(enemies);
-        Assert.Contains(enemies, e => e.Tier == EncounterTier.Boss);
+        Assert.All(enemies, enemy =>
+        {
+            Assert.True(enemy.Id > 0);
+            Assert.False(string.IsNullOrWhiteSpace(enemy.Name));
+        });
     }
 
     // --- Travel ---

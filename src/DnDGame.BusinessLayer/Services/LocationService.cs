@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text;
 using DnDGame.BusinessLayer.Common.Errors;
 using DnDGame.BusinessLayer.Common.Exceptions;
 using DnDGame.BusinessLayer.Dtos.Locations;
@@ -65,51 +66,35 @@ public sealed class LocationService : ILocationService
 
     public async Task<IReadOnlyList<LocationSummaryDto>> GetAllLocationsAsync()
     {
-        var character = await RequireCurrentCharacterAsync();
-        var (context, progressByLocation) = await BuildUnlockContextAsync(character);
         var definitions = await _locationDefinitionRepository.GetAllAsync();
-        var recommendedNext = await RecommendedNextLocationAsync(context);
 
         return definitions
             .OrderBy(definition => definition.Id)
-            .Select(definition => ToSummaryDto(definition, progressByLocation, recommendedNext))
+            .Select(ToSummaryDto)
             .ToList();
     }
 
     public async Task<LocationDetailsDto> GetLocationByIdAsync(LocationId locationId)
     {
         RequireDefinedLocation(locationId);
-        var character = await RequireCurrentCharacterAsync();
-        var (context, progressByLocation) = await BuildUnlockContextAsync(character);
         var definition = await RequireDefinitionAsync(locationId);
-        var recommendedNext = await RecommendedNextLocationAsync(context);
 
-        return ToDetailsDto(definition, progressByLocation, recommendedNext);
+        return ToDetailsDto(definition);
     }
 
-    public async Task<LocationProgressDto> GetProgressForPlayerAsync(int playerId)
+    public async Task<IReadOnlyList<LocationStatusDto>> GetProgressForPlayerAsync(int playerId)
     {
         var character = await RequireCharacterForPlayerAsync(playerId);
-        var (context, progressByLocation) = await BuildUnlockContextAsync(character);
+        var (_, progressByLocation) = await BuildUnlockContextAsync(character);
         var definitions = await _locationDefinitionRepository.GetAllAsync();
-        var recommendedNext = await RecommendedNextLocationAsync(context);
 
-        var summaries = definitions
+        return definitions
             .OrderBy(definition => definition.Id)
-            .Select(definition => ToSummaryDto(definition, progressByLocation, recommendedNext))
+            .Select(definition => ToStatusDto(definition, progressByLocation))
             .ToList();
-
-        return new LocationProgressDto
-        {
-            PlayerId = character.Id,
-            CurrentLocationId = context.CurrentLocationId,
-            RecommendedNextLocationId = recommendedNext,
-            HeroOverlookFinaleUnlocked = context.CompletedQuestIds.Contains(HeroOverlookFinaleQuestId),
-            Locations = summaries
-        };
     }
 
-    public async Task<LocationRouteDto> GetRouteForPlayerAsync(int playerId)
+    public async Task<IReadOnlyList<LocationRouteDto>> GetRouteForPlayerAsync(int playerId)
     {
         var character = await RequireCharacterForPlayerAsync(playerId);
         var race = RequireDefinedRace(character);
@@ -117,26 +102,24 @@ public sealed class LocationService : ILocationService
         var route = _locationRouteProvider.GetRecommendedRoute(race);
         var definitions = (await _locationDefinitionRepository.GetAllAsync()).ToDictionary(d => d.Id);
 
-        var steps = route.Steps
+        return route.Steps
             .OrderBy(step => step.Order)
-            .Select(step => new LocationRouteStepDto
+            .Select(step =>
             {
-                Order = step.Order,
-                LocationId = step.LocationId,
-                LocationName = definitions.TryGetValue(step.LocationId, out var definition) ? definition.Name : step.LocationId.ToString(),
-                RouteSegment = step.RouteSegment,
-                Status = progressByLocation.TryGetValue(step.LocationId, out var progress) ? progress.Status : LocationStatus.Locked,
-                UnlockRequirements = LocationUnlockRequirementDto.FromDomain(step.UnlockRequirement)
+                progressByLocation.TryGetValue(step.LocationId, out var progress);
+                definitions.TryGetValue(step.LocationId, out var definition);
+                return new LocationRouteDto
+                {
+                    Order = step.Order,
+                    LocationId = (int)step.LocationId,
+                    LocationName = definition?.Name ?? step.LocationId.ToString(),
+                    Status = StatusText(progress),
+                    RecommendedLevel = definition?.RecommendedMinimumLevel ?? 1,
+                    IsCurrent = progress?.Status == LocationStatus.Current,
+                    IsCompleted = progress?.Completed ?? false
+                };
             })
             .ToList();
-
-        return new LocationRouteDto
-        {
-            Race = race,
-            Steps = steps,
-            FragmentLocationsFlexibleAfterMainQuestId = route.FragmentLocationsFlexibleAfterMainQuestId,
-            FlexibleFragmentLocationIds = route.FlexibleFragmentLocationIds.ToList()
-        };
     }
 
     public async Task<IReadOnlyList<LocationEnemyDto>> GetAvailableEnemiesAsync(
@@ -150,11 +133,12 @@ public sealed class LocationService : ILocationService
             new EncounterSelectionContext(locationId, sessionId, subLocation));
 
         return selection.AvailableEncounters
+            .GroupBy(option => option.EnemyId)
+            .Select(group => group.First())
             .Select(option => new LocationEnemyDto
             {
-                EnemyId = option.EnemyId,
-                EnemyName = option.EnemyName,
-                Tier = option.Tier
+                Id = option.EnemyId,
+                Name = option.EnemyName
             })
             .ToList();
     }
@@ -325,49 +309,83 @@ public sealed class LocationService : ILocationService
 
     // --- Projection helpers ---
 
-    private static LocationSummaryDto ToSummaryDto(
-        LocationDefinition definition, Dictionary<LocationId, LocationProgress> progressByLocation, LocationId? recommendedNext)
+    private static LocationSummaryDto ToSummaryDto(LocationDefinition definition)
     {
-        progressByLocation.TryGetValue(definition.Id, out var progress);
         return new LocationSummaryDto
         {
-            Id = definition.Id,
+            Id = (int)definition.Id,
+            Slug = ToSlug(definition.Name),
             Name = definition.Name,
-            Description = definition.Description,
-            BackgroundImage = definition.BackgroundImage,
-            Status = progress?.Status ?? LocationStatus.Locked,
             RecommendedMinimumLevel = definition.RecommendedMinimumLevel,
-            RecommendedMaximumLevel = definition.RecommendedMaximumLevel,
-            UnlockRequirements = LocationUnlockRequirementDto.FromDomain(definition.UnlockRequirement),
-            IsCurrent = progress?.Status == LocationStatus.Current,
-            IsRecommendedNext = recommendedNext == definition.Id
+            BackgroundImage = definition.BackgroundImage,
+            IsSafeLocation = definition.IsSafeLocation
         };
     }
 
-    private static LocationDetailsDto ToDetailsDto(
-        LocationDefinition definition, Dictionary<LocationId, LocationProgress> progressByLocation, LocationId? recommendedNext)
+    private static LocationDetailsDto ToDetailsDto(LocationDefinition definition)
     {
-        progressByLocation.TryGetValue(definition.Id, out var progress);
         return new LocationDetailsDto
         {
-            Id = definition.Id,
+            Id = (int)definition.Id,
+            Slug = ToSlug(definition.Name),
             Name = definition.Name,
             Description = definition.Description,
-            BackgroundImage = definition.BackgroundImage,
-            Status = progress?.Status ?? LocationStatus.Locked,
             RecommendedMinimumLevel = definition.RecommendedMinimumLevel,
-            RecommendedMaximumLevel = definition.RecommendedMaximumLevel,
-            IsSafeLocation = definition.IsSafeLocation,
-            UnlockRequirements = LocationUnlockRequirementDto.FromDomain(definition.UnlockRequirement),
-            IsCurrent = progress?.Status == LocationStatus.Current,
-            IsRecommendedNext = recommendedNext == definition.Id,
-            Visited = progress?.Visited ?? false,
-            Completed = progress?.Completed ?? false,
-            UnlockedAtLevel = progress?.UnlockedAtLevel,
-            MainQuestIds = definition.MainQuestIds.ToList(),
-            SideQuestIds = definition.SideQuestIds.ToList(),
-            SpecialFlags = definition.SpecialFlags.ToList()
+            BackgroundImage = definition.BackgroundImage,
+            IsSafeLocation = definition.IsSafeLocation
         };
+    }
+
+    private static LocationStatusDto ToStatusDto(
+        LocationDefinition definition,
+        Dictionary<LocationId, LocationProgress> progressByLocation)
+    {
+        progressByLocation.TryGetValue(definition.Id, out var progress);
+        return new LocationStatusDto
+        {
+            LocationId = (int)definition.Id,
+            LocationName = definition.Name,
+            Status = StatusText(progress),
+            RecommendedLevel = definition.RecommendedMinimumLevel,
+            IsCurrent = progress?.Status == LocationStatus.Current,
+            IsCompleted = progress?.Completed ?? false
+        };
+    }
+
+    private static string StatusText(LocationProgress? progress)
+    {
+        return (progress?.Status ?? LocationStatus.Locked).ToString();
+    }
+
+    private static string ToSlug(string name)
+    {
+        var slug = new StringBuilder();
+        var previousWasSeparator = false;
+
+        foreach (var character in name.ToLowerInvariant())
+        {
+            if (char.IsLetterOrDigit(character))
+            {
+                slug.Append(character);
+                previousWasSeparator = false;
+                continue;
+            }
+
+            if ((char.IsWhiteSpace(character) || character is '-' or '_') &&
+                slug.Length > 0 &&
+                !previousWasSeparator)
+            {
+                slug.Append('-');
+                previousWasSeparator = true;
+            }
+        }
+
+        if (slug.Length > 0 && slug[^1] == '-')
+        {
+            slug.Length--;
+        }
+
+        return slug.ToString();
     }
 
     // --- Resource resolution ---

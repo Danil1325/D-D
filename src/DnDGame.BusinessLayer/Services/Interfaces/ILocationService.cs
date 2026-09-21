@@ -13,17 +13,17 @@ namespace DnDGame.BusinessLayer.Services.Interfaces;
 /// </summary>
 public interface ILocationService
 {
-    /// <summary>The full catalogue, projected for the current player (ICurrentPlayerService).</summary>
+    /// <summary>The full location catalogue.</summary>
     Task<IReadOnlyList<LocationSummaryDto>> GetAllLocationsAsync();
 
-    /// <summary>One location's full detail, projected for the current player.</summary>
+    /// <summary>One location's catalogue detail.</summary>
     Task<LocationDetailsDto> GetLocationByIdAsync(LocationId locationId);
 
-    /// <summary>A specific player's whole progression snapshot.</summary>
-    Task<LocationProgressDto> GetProgressForPlayerAsync(int playerId);
+    /// <summary>A specific player's location statuses.</summary>
+    Task<IReadOnlyList<LocationStatusDto>> GetProgressForPlayerAsync(int playerId);
 
     /// <summary>A specific player's race-recommended route, with their status for each step.</summary>
-    Task<LocationRouteDto> GetRouteForPlayerAsync(int playerId);
+    Task<IReadOnlyList<LocationRouteDto>> GetRouteForPlayerAsync(int playerId);
 
     /// <summary>
     /// The enemies a specific player can currently fight at a location. Delegates to

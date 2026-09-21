@@ -1,9 +1,8 @@
 namespace DnDGame.BusinessLayer.Dtos.Locations;
 
-/// <summary>One ordered point on a player's race-recommended route.</summary>
-public class LocationRouteDto
+/// <summary>Player-specific location state displayed by the map UI.</summary>
+public class LocationStatusDto
 {
-    public int Order { get; init; }
     public int LocationId { get; init; }
     public string LocationName { get; init; } = string.Empty;
     public string Status { get; init; } = string.Empty;

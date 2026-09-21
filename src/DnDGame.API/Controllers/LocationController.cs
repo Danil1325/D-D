@@ -31,14 +31,14 @@ public class LocationController : ControllerBase
     }
 
     [HttpGet("player/{playerId:int}")]
-    public async Task<ActionResult<LocationProgressDto>> GetProgressForPlayer(int playerId)
+    public async Task<ActionResult<IReadOnlyList<LocationStatusDto>>> GetProgressForPlayer(int playerId)
     {
         var result = await _locationService.GetProgressForPlayerAsync(playerId);
         return Ok(result);
     }
 
     [HttpGet("player/{playerId:int}/route")]
-    public async Task<ActionResult<LocationRouteDto>> GetRouteForPlayer(int playerId)
+    public async Task<ActionResult<IReadOnlyList<LocationRouteDto>>> GetRouteForPlayer(int playerId)
     {
         var result = await _locationService.GetRouteForPlayerAsync(playerId);
         return Ok(result);
