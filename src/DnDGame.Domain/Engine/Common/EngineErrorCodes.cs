@@ -23,4 +23,10 @@ public static class EngineErrorCodes
     public const string ScenarioChoiceAlreadySelected = "SCENARIO_CHOICE_ALREADY_SELECTED";
     public const string ScenarioRequirementNotMet = "SCENARIO_REQUIREMENT_NOT_MET";
     public const string ScenarioStoryCompleted = "SCENARIO_STORY_COMPLETED";
+
+    // Location unlock engine (Domain.Engine.Locations)
+    public const string LocationInvalidContext = "LOCATION_INVALID_CONTEXT";
+    public const string LocationRequirementNotMet = "LOCATION_REQUIREMENT_NOT_MET";
+    public const string LocationAlreadyUnlocked = "LOCATION_ALREADY_UNLOCKED";
+    public const string LocationNotUnlocked = "LOCATION_NOT_UNLOCKED";
 }
