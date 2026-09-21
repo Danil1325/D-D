@@ -3,8 +3,10 @@ using DnDGame.BusinessLayer.Common.Exceptions;
 using DnDGame.BusinessLayer.Services;
 using DnDGame.BusinessLayer.Services.Interfaces;
 using DnDGame.Domain.Configuration;
+using DnDGame.Domain.Engine.Locations;
 using DnDGame.Domain.Entities.Characters;
 using DnDGame.Domain.Entities.Game;
+using DnDGame.Domain.Entities.Locations;
 using DnDGame.Domain.Enums;
 using DnDGame.MockData;
 using DnDGame.MockData.Repositories;
@@ -257,6 +259,178 @@ public class QuestServiceTests
         Assert.Empty(store.ScenarioProgresses);
     }
 
+    // --- Completion: location unlocks (BACK-LOC-07) ---
+
+    [Fact]
+    public async Task CompleteQuest_MQ01_ForHuman_CompletesHerosOverlookAndUnlocksMisthavenPortDirectly()
+    {
+        // Human's racial route goes straight Hero's Overlook -> Misthaven Port
+        // (LocationRouteRegistry), so for this race MQ-01 alone is enough.
+        var (service, store, _, _, _) = CreateScenario();
+        var mq01 = QuestId(store, "MQ-01");
+
+        await service.StartQuestAsync(1, mq01);
+        var result = await service.CompleteQuestAsync(1, mq01);
+
+        Assert.Contains(LocationId.MisthavenPort, result.NewLocationIds);
+        Assert.DoesNotContain(LocationId.Oakheaven, result.NewLocationIds);
+
+        var progress = store.LocationProgresses.Where(p => p.PlayerId == 1).ToList();
+        Assert.Contains(progress, p => p.LocationId == LocationId.HerosOverlook && p.Completed);
+        Assert.Contains(progress, p => p.LocationId == LocationId.MisthavenPort && p.Status != LocationStatus.Locked);
+    }
+
+    [Fact]
+    public async Task CompleteQuest_ForElf_MQ01ThenMQ02_OpensWhisperingWoodsThenMisthavenPort()
+    {
+        // Non-Human races have a distinct first stop before Misthaven Port opens.
+        var (service, store, player, _, _) = CreateScenario();
+        player.RaceId = 2; // Elf
+        var mq01 = QuestId(store, "MQ-01");
+        var mq02 = QuestId(store, "MQ-02");
+
+        await service.StartQuestAsync(1, mq01);
+        var afterPrologue = await service.CompleteQuestAsync(1, mq01);
+        Assert.Contains(LocationId.WhisperingWoods, afterPrologue.NewLocationIds);
+        Assert.DoesNotContain(LocationId.MisthavenPort, afterPrologue.NewLocationIds);
+
+        player.Level = 1; // Keep MQ-02 (level 1-2) reachable regardless of MQ-01's XP.
+        await service.StartQuestAsync(1, mq02);
+        var afterRacialRoute = await service.CompleteQuestAsync(1, mq02);
+
+        Assert.Contains(LocationId.MisthavenPort, afterRacialRoute.NewLocationIds);
+    }
+
+    [Fact]
+    public async Task CompleteQuest_MQ03_UnlocksOakheaven()
+    {
+        var (service, store, player, _, _) = CreateScenario();
+        SeedCompletedQuest(store, 1);
+        SeedCompletedQuest(store, 2);
+        player.Level = 2; // MQ-03's range is 2-2.
+        var mq03 = QuestId(store, "MQ-03");
+
+        await service.StartQuestAsync(1, mq03);
+        var result = await service.CompleteQuestAsync(1, mq03);
+
+        Assert.Contains(LocationId.Oakheaven, result.NewLocationIds);
+    }
+
+    [Fact]
+    public async Task CompleteQuest_MQ06_OpensTheFlexibleFragmentLocations()
+    {
+        // Without MQ-06's flexible-route bypass, WhisperingWoods/Ashtonia/TheBonePeaks
+        // (next in the normal route order after Oakheaven) would stay unreachable
+        // through the generic "previous location complete" fallback alone.
+        var (service, store, player, _, _) = CreateScenario();
+        foreach (var id in new[] { 1, 2, 3, 4, 5 })
+        {
+            SeedCompletedQuest(store, id);
+        }
+        player.Level = 5; // MQ-06's range is 4-5.
+        var mq06 = QuestId(store, "MQ-06");
+
+        await service.StartQuestAsync(1, mq06);
+        var result = await service.CompleteQuestAsync(1, mq06);
+
+        Assert.Contains(LocationId.WhisperingWoods, result.NewLocationIds);
+        Assert.Contains(LocationId.Ashtonia, result.NewLocationIds);
+        Assert.Contains(LocationId.TheBonePeaks, result.NewLocationIds);
+    }
+
+    [Fact]
+    public async Task CompleteQuest_MQ06_MarksOakheavenLocationProgressCompleted()
+    {
+        // MQ-06 ("The Unburned Town") is Oakheaven's own resolution quest; its
+        // completion should mark LocationProgress.Completed for Oakheaven even
+        // though nothing downstream depends on that flag for unlocking anything else
+        // (the flexible fragment locations unlock via the same quest, independently).
+        var (service, store, player, _, _) = CreateScenario();
+        foreach (var id in new[] { 1, 2, 3, 4, 5 })
+        {
+            SeedCompletedQuest(store, id);
+        }
+        player.Level = 5;
+        var mq06 = QuestId(store, "MQ-06");
+
+        await service.StartQuestAsync(1, mq06);
+        await service.CompleteQuestAsync(1, mq06);
+
+        var oakheavenProgress = store.LocationProgresses.Single(p => p.PlayerId == 1 && p.LocationId == LocationId.Oakheaven);
+        Assert.True(oakheavenProgress.Completed);
+    }
+
+    [Fact]
+    public async Task CompleteQuest_MQ10_UnlocksDarkstormKeep()
+    {
+        // MQ-10's own prerequisite chain requires MQ-07/08/09 (the three Crown
+        // Fragment quests) already completed, so the "three fragments" condition is
+        // always satisfied by the time MQ-10 is reachable at all.
+        var (service, store, player, _, _) = CreateScenario();
+        foreach (var id in new[] { 1, 2, 3, 4, 5, 6, 7, 8, 9 })
+        {
+            SeedCompletedQuest(store, id);
+        }
+        player.Level = 8;
+        var mq10 = QuestId(store, "MQ-10");
+
+        await service.StartQuestAsync(1, mq10);
+        var result = await service.CompleteQuestAsync(1, mq10);
+
+        Assert.Contains(LocationId.DarkstormKeep, result.NewLocationIds);
+    }
+
+    [Fact]
+    public async Task CompleteQuest_MQ13_UnlocksHerosOverlookFinale_AndSetsFinaleUnlockedFlag()
+    {
+        var (service, store, player, _, _) = CreateScenario();
+        foreach (var id in new[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12 })
+        {
+            SeedCompletedQuest(store, id);
+        }
+        player.Level = 9;
+        var mq13 = QuestId(store, "MQ-13");
+
+        await service.StartQuestAsync(1, mq13);
+        var result = await service.CompleteQuestAsync(1, mq13);
+
+        Assert.Contains(LocationId.HerosOverlook, result.NewLocationIds);
+        var progress = store.ScenarioProgresses.Single(p => p.GameSessionId == 1);
+        Assert.True(progress.StoryFlags["FinaleUnlocked"]);
+    }
+
+    [Fact]
+    public async Task CompleteQuest_SameLocationIsNeverReportedAsNewTwice()
+    {
+        var (service, store, player, _, _) = CreateScenario();
+        var mq01 = QuestId(store, "MQ-01");
+        await service.StartQuestAsync(1, mq01);
+        var first = await service.CompleteQuestAsync(1, mq01);
+        Assert.Contains(LocationId.MisthavenPort, first.NewLocationIds);
+
+        // Nothing else unlocks between MQ-01 and MQ-02, so re-evaluating on MQ-02's
+        // completion must not report Misthaven Port (or Hero's Overlook) again.
+        player.Level = 1;
+        var mq02 = QuestId(store, "MQ-02");
+        await service.StartQuestAsync(1, mq02);
+        var second = await service.CompleteQuestAsync(1, mq02);
+
+        Assert.DoesNotContain(LocationId.MisthavenPort, second.NewLocationIds);
+        Assert.DoesNotContain(LocationId.HerosOverlook, second.NewLocationIds);
+    }
+
+    private static void SeedCompletedQuest(InMemoryGameDataStore store, int questId, int gameSessionId = 1)
+    {
+        store.PlayerQuests.Add(new PlayerQuest
+        {
+            GameSessionId = gameSessionId,
+            QuestId = questId,
+            Status = QuestStatus.Completed,
+            StartedAt = DateTime.UtcNow,
+            CompletedAt = DateTime.UtcNow
+        });
+    }
+
     // --- Objectives ---
 
     [Fact]
@@ -489,7 +663,10 @@ public class QuestServiceTests
             new MockGameSessionRepository(store),
             new MockCharacterRepository(store),
             new ExperienceService(new LevelProgressionRules()),
-            new FixedCurrentPlayerService(CurrentPlayerId));
+            new FixedCurrentPlayerService(CurrentPlayerId),
+            new MockLocationProgressRepository(store),
+            new LocationUnlockEngine(),
+            new LocationRouteProvider());
     }
 
     private static int QuestId(InMemoryGameDataStore store, string code)

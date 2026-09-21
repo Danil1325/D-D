@@ -29,10 +29,12 @@ using DnDGame.Domain.Engine.Common;
 using DnDGame.Domain.Engine.Dice;
 using DnDGame.Domain.Engine.EnemyActions;
 using DnDGame.Domain.Engine.Initiative;
+using DnDGame.Domain.Engine.Locations;
 using DnDGame.Domain.Engine.SavingThrows;
 using DnDGame.Domain.Engine.Scenario;
 using DnDGame.Domain.Engine.Turn;
 using DnDGame.Domain.Entities.Accounts;
+using DnDGame.Domain.Entities.Locations;
 using DnDGame.MockData;
 using DnDGame.MockData.Repositories;
 using DnDGame.MockData.Services;
@@ -238,6 +240,7 @@ public static class DependencyInjection
         services.AddScoped<ILocationRepository, MockLocationRepository>();
         services.AddScoped<ILocationDefinitionRepository, MockLocationDefinitionRepository>();
         services.AddScoped<ILocationEncounterRepository, MockLocationEncounterRepository>();
+        services.AddScoped<ILocationProgressRepository, MockLocationProgressRepository>();
 
         services.AddScoped<ICurrentPlayerService, MockCurrentPlayerService>();
         services.AddScoped<ICardService, CardService>();
@@ -269,6 +272,12 @@ public static class DependencyInjection
     public static IServiceCollection AddScenarioServices(this IServiceCollection services)
     {
         services.AddSingleton<IScenarioEngine, ScenarioEngine>();
+
+        // Stateless/pure, same as IScenarioEngine above — QuestService (below) uses
+        // both to check which locations a completed quest newly unlocks (BACK-LOC-07).
+        services.AddSingleton<ILocationRouteProvider, LocationRouteProvider>();
+        services.AddSingleton<ILocationUnlockEngine, LocationUnlockEngine>();
+
         services.AddScoped<IQuestService, QuestService>();
         services.AddScoped<IScenarioService, ScenarioService>();
         services.AddScoped<IProgressionService, ProgressionService>();

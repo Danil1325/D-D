@@ -65,6 +65,10 @@ public class InMemoryGameDataStore
     public List<PlayerQuest> PlayerQuests { get; } = new();
     public List<ScenarioProgress> ScenarioProgresses { get; } = new();
 
+    // --- Runtime / gameplay data (empty until a quest completion unlocks a
+    // location for a player — see QuestService.EvaluateLocationUnlocksAsync) ---
+    public List<LocationProgress> LocationProgresses { get; } = new();
+
     // --- Auth data (empty until someone registers). Deliberately not linked to
     // Characters — there is no Account-to-PlayerCharacter relationship yet.
     public List<Account> Accounts { get; } = new();

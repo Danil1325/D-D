@@ -4,8 +4,10 @@ using DnDGame.BusinessLayer.Common.Exceptions;
 using DnDGame.BusinessLayer.Models;
 using DnDGame.BusinessLayer.Repositories.Interfaces;
 using DnDGame.BusinessLayer.Services.Interfaces;
+using DnDGame.Domain.Engine.Locations;
 using DnDGame.Domain.Entities.Characters;
 using DnDGame.Domain.Entities.Game;
+using DnDGame.Domain.Entities.Locations;
 using DnDGame.Domain.Enums;
 
 namespace DnDGame.BusinessLayer.Services;
@@ -23,6 +25,9 @@ public sealed class QuestService : IQuestService
     private readonly ICharacterRepository _characterRepository;
     private readonly IExperienceService _experienceService;
     private readonly ICurrentPlayerService _currentPlayerService;
+    private readonly ILocationProgressRepository _locationProgressRepository;
+    private readonly ILocationUnlockEngine _locationUnlockEngine;
+    private readonly ILocationRouteProvider _locationRouteProvider;
 
     public QuestService(
         IQuestRepository questRepository,
@@ -31,7 +36,10 @@ public sealed class QuestService : IQuestService
         IGameSessionRepository gameSessionRepository,
         ICharacterRepository characterRepository,
         IExperienceService experienceService,
-        ICurrentPlayerService currentPlayerService)
+        ICurrentPlayerService currentPlayerService,
+        ILocationProgressRepository locationProgressRepository,
+        ILocationUnlockEngine locationUnlockEngine,
+        ILocationRouteProvider locationRouteProvider)
     {
         _questRepository = questRepository;
         _playerQuestRepository = playerQuestRepository;
@@ -40,6 +48,9 @@ public sealed class QuestService : IQuestService
         _characterRepository = characterRepository;
         _experienceService = experienceService;
         _currentPlayerService = currentPlayerService;
+        _locationProgressRepository = locationProgressRepository;
+        _locationUnlockEngine = locationUnlockEngine;
+        _locationRouteProvider = locationRouteProvider;
     }
 
     public async Task<IReadOnlyList<QuestView>> GetAvailableQuestsAsync(
@@ -321,7 +332,8 @@ public sealed class QuestService : IQuestService
 
         var experienceResult = await GrantExperienceAsync(character, quest.Rewards.Sum(r => r.Experience));
         progress = await ApplyRewardEffectsAsync(session, progress, quest.Rewards, quest.ResultFlags);
-        await ApplyOutcomeEffectsAsync(session, progress, quest);
+        progress = await ApplyOutcomeEffectsAsync(session, progress, quest);
+        var newLocationIds = await EvaluateLocationUnlocksAsync(session, character, progress);
 
         return new QuestCompletionResult(
             quest.Id,
@@ -329,7 +341,8 @@ public sealed class QuestService : IQuestService
             experienceResult.ExperienceGained,
             experienceResult.PreviousLevel,
             experienceResult.CurrentLevel,
-            experienceResult.SkillPointsGained);
+            experienceResult.SkillPointsGained,
+            newLocationIds);
     }
 
     private async Task<ScenarioProgress?> GrantObjectiveRewardsAsync(
@@ -448,13 +461,13 @@ public sealed class QuestService : IQuestService
     /// Items. Wiring those needs design decisions (e.g. a companion code-to-id
     /// lookup that doesn't exist yet) outside BACK-LOC-06's scope.
     /// </summary>
-    private async Task ApplyOutcomeEffectsAsync(GameSession session, ScenarioProgress? progress, Quest quest)
+    private async Task<ScenarioProgress?> ApplyOutcomeEffectsAsync(GameSession session, ScenarioProgress? progress, Quest quest)
     {
         var eligibleOutcome = quest.Outcomes.FirstOrDefault(outcome =>
             outcome.RequiredFlags.All(entry => MatchesRequiredFlag(progress, entry.Key, entry.Value)));
         if (eligibleOutcome is null)
         {
-            return;
+            return progress;
         }
 
         var flags = new Dictionary<string, bool>();
@@ -470,7 +483,7 @@ public sealed class QuestService : IQuestService
 
         if (flags.Count == 0)
         {
-            return;
+            return progress;
         }
 
         var created = progress is null;
@@ -489,6 +502,8 @@ public sealed class QuestService : IQuestService
         {
             await _scenarioProgressRepository.UpdateAsync(progress);
         }
+
+        return progress;
     }
 
     /// <summary>
@@ -503,6 +518,209 @@ public sealed class QuestService : IQuestService
     {
         var actualValue = progress?.StoryFlags.GetValueOrDefault(flag) ?? false;
         return actualValue == requiredValue;
+    }
+
+    // --- Location unlocks (BACK-LOC-07) ---
+
+    // MQ-01/MQ-02/MQ-06/MQ-07/MQ-08/MQ-09 have no gating role inside
+    // ILocationUnlockEngine itself (it only knows about quests 3/6/10/13 — see its
+    // own private constants); they are how THIS class derives the inputs the engine
+    // cannot compute on its own (CompletedLocationIds and CrownFragmentCount).
+    // HeroOverlookFinaleQuestId duplicates the engine's own private constant
+    // deliberately — mirroring it here (rather than exposing it from the engine) is
+    // what keeps QuestService a caller of the engine instead of a dependency of it,
+    // avoiding a circular reference.
+    private const int PrologueQuestId = 1;
+    private const int RacialRouteQuestId = 2;
+
+    // "The Unburned Town" is Oakheaven's own resolution quest (Mage/Warrior/Bard/
+    // Healer solution) — its completion is what marks Oakheaven itself Completed.
+    // It's also ILocationUnlockEngine's FragmentRouteFlexQuestId, which is what
+    // actually unlocks the three flexible fragment locations; this second effect
+    // only keeps LocationProgress.Completed accurate for Oakheaven, it changes
+    // nothing about which locations become available.
+    private const int OakheavenResolvedQuestId = 6;
+
+    private static readonly int[] CrownFragmentQuestIds = { 7, 8, 9 };
+    private const int HeroOverlookFinaleQuestId = 13;
+
+    // Matches LocationDefinition.SpecialFlags/LocationEncounterSeedData's own gate
+    // for Hero's Overlook's final bosses (BACK-LOC-06) — setting it here is what
+    // makes MQ-13's "final enemies stop being locked to the prologue" rule live.
+    private const string FinaleUnlockedFlag = "FinaleUnlocked";
+
+    /// <summary>
+    /// Re-evaluates which locations are newly available to this player after a
+    /// quest completes, persists that into LocationProgress, and returns the
+    /// locations that just became available. ILocationUnlockEngine already encodes
+    /// every gating rule (guild registration by MQ-03, three fragments + MQ-10 for
+    /// Darkstorm Keep, MQ-13 for the finale, racial-route ordering) — this method's
+    /// only job is feeding it accurate state; it never duplicates or overrides the
+    /// engine's own unlock logic.
+    /// </summary>
+    private async Task<IReadOnlyList<LocationId>> EvaluateLocationUnlocksAsync(
+        GameSession session, PlayerCharacter character, ScenarioProgress? progress)
+    {
+        if (!Enum.IsDefined(typeof(RaceType), character.RaceId))
+        {
+            // No route is configured for this RaceId (e.g. test data outside 1-4).
+            // This is a supplementary step, not core to quest completion, so skip
+            // rather than fail the whole completion over unrelated location data.
+            return Array.Empty<LocationId>();
+        }
+
+        var playerQuests = await _playerQuestRepository.GetByGameSessionAsync(session.Id);
+        var completedQuestIds = playerQuests
+            .Where(pq => pq.Status == QuestStatus.Completed)
+            .Select(pq => pq.QuestId)
+            .ToHashSet();
+
+        var existingProgress = await _locationProgressRepository.GetByPlayerIdAsync(character.Id);
+        var progressByLocation = existingProgress.ToDictionary(p => p.LocationId);
+
+        var unlockedLocationIds = progressByLocation.Values
+            .Where(p => p.Status != LocationStatus.Locked)
+            .Select(p => p.LocationId)
+            .ToList();
+
+        var completedLocationIds = progressByLocation.Values
+            .Where(p => p.Completed)
+            .Select(p => p.LocationId)
+            .ToHashSet();
+
+        var race = (RaceType)character.RaceId;
+        var route = _locationRouteProvider.GetRecommendedRoute(race);
+        var raceFirstLocationId = route.Steps.OrderBy(step => step.Order).Skip(1).First().LocationId;
+
+        // No other system currently calls ILocationUnlockEngine.CompleteLocation, so
+        // these are the only ways a location's completion is ever recorded: MQ-01
+        // finishing the prologue, MQ-02 ("The Road That Is Yours") finishing the
+        // player's race-specific opening, MQ-06 ("The Unburned Town") resolving
+        // Oakheaven itself.
+        if (completedQuestIds.Contains(PrologueQuestId))
+        {
+            completedLocationIds.Add(LocationId.HerosOverlook);
+        }
+
+        if (completedQuestIds.Contains(RacialRouteQuestId))
+        {
+            completedLocationIds.Add(raceFirstLocationId);
+        }
+
+        if (completedQuestIds.Contains(OakheavenResolvedQuestId))
+        {
+            completedLocationIds.Add(LocationId.Oakheaven);
+        }
+
+        var context = new LocationUnlockContext
+        {
+            PlayerId = character.Id,
+            Race = race,
+            Level = character.Level,
+            CompletedQuestIds = completedQuestIds.ToList(),
+            StoryFlags = progress?.StoryFlags ?? new Dictionary<string, bool>(),
+            CrownFragmentCount = CrownFragmentQuestIds.Count(completedQuestIds.Contains),
+            CompletedLocationIds = completedLocationIds.ToList(),
+            UnlockedLocationIds = unlockedLocationIds
+        };
+
+        var availableResult = _locationUnlockEngine.GetAvailableLocations(context);
+        if (!availableResult.Success || availableResult.Data is null)
+        {
+            return Array.Empty<LocationId>();
+        }
+
+        var newLocationIds = availableResult.Data
+            .Where(locationId => !unlockedLocationIds.Contains(locationId))
+            .ToList();
+
+        // The engine deliberately re-surfaces Hero's Overlook once MQ-13 completes
+        // (the Finale), even though it was already unlocked from the prologue — so
+        // it never appears via the plain "not already unlocked" diff above.
+        if (completedQuestIds.Contains(HeroOverlookFinaleQuestId))
+        {
+            var finaleAlreadyUnlocked = progress?.StoryFlags.GetValueOrDefault(FinaleUnlockedFlag) ?? false;
+            if (!finaleAlreadyUnlocked)
+            {
+                progress = await SetStoryFlagAsync(session, progress, FinaleUnlockedFlag, true);
+                if (!newLocationIds.Contains(LocationId.HerosOverlook))
+                {
+                    newLocationIds.Add(LocationId.HerosOverlook);
+                }
+            }
+        }
+
+        foreach (var locationId in newLocationIds)
+        {
+            await UpsertLocationProgressAsync(progressByLocation, character, locationId, completed: false);
+        }
+
+        foreach (var locationId in completedLocationIds)
+        {
+            await UpsertLocationProgressAsync(progressByLocation, character, locationId, completed: true);
+        }
+
+        return newLocationIds;
+    }
+
+    private async Task<ScenarioProgress> SetStoryFlagAsync(GameSession session, ScenarioProgress? progress, string flag, bool value)
+    {
+        var created = progress is null;
+        progress ??= new ScenarioProgress { GameSessionId = session.Id };
+        progress.StoryFlags[flag] = value;
+
+        if (created)
+        {
+            await _scenarioProgressRepository.AddAsync(progress);
+        }
+        else
+        {
+            await _scenarioProgressRepository.UpdateAsync(progress);
+        }
+
+        return progress;
+    }
+
+    private async Task UpsertLocationProgressAsync(
+        Dictionary<LocationId, LocationProgress> progressByLocation,
+        PlayerCharacter character,
+        LocationId locationId,
+        bool completed)
+    {
+        if (progressByLocation.TryGetValue(locationId, out var existing))
+        {
+            var changed = false;
+            if (existing.Status == LocationStatus.Locked)
+            {
+                existing.Status = LocationStatus.Available;
+                existing.UnlockedAtLevel ??= character.Level;
+                changed = true;
+            }
+
+            if (completed && !existing.Completed)
+            {
+                existing.Completed = true;
+                changed = true;
+            }
+
+            if (changed)
+            {
+                await _locationProgressRepository.UpdateAsync(existing);
+            }
+
+            return;
+        }
+
+        var created = new LocationProgress
+        {
+            PlayerId = character.Id,
+            LocationId = locationId,
+            Status = LocationStatus.Available,
+            UnlockedAtLevel = character.Level,
+            Completed = completed
+        };
+        await _locationProgressRepository.AddAsync(created);
+        progressByLocation[locationId] = created;
     }
 
     // --- Gating checks ---
