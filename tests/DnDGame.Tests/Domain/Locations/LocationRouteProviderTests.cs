@@ -8,32 +8,27 @@ public class LocationRouteProviderTests
     private readonly ILocationRouteProvider _provider = new LocationRouteProvider();
 
     [Theory]
-    [InlineData(RaceType.Human, new[] { LocationId.HerosOverlook, LocationId.MisthavenPort, LocationId.Oakheaven, LocationId.WhisperingWoods, LocationId.Ashtonia, LocationId.TheBonePeaks, LocationId.DarkstormKeep, LocationId.HerosOverlook })]
-    [InlineData(RaceType.Elf, new[] { LocationId.HerosOverlook, LocationId.WhisperingWoods, LocationId.MisthavenPort, LocationId.Oakheaven, LocationId.Ashtonia, LocationId.TheBonePeaks, LocationId.DarkstormKeep, LocationId.HerosOverlook })]
-    [InlineData(RaceType.Orc, new[] { LocationId.HerosOverlook, LocationId.Ashtonia, LocationId.MisthavenPort, LocationId.Oakheaven, LocationId.WhisperingWoods, LocationId.TheBonePeaks, LocationId.DarkstormKeep, LocationId.HerosOverlook })]
+    [InlineData(RaceType.Human, new[] { LocationId.HerosOverlook, LocationId.MisthavenPort, LocationId.MisthavenPort, LocationId.Oakheaven, LocationId.Ashtonia, LocationId.WhisperingWoods, LocationId.TheBonePeaks, LocationId.DarkstormKeep, LocationId.HerosOverlook })]
+    [InlineData(RaceType.Elf, new[] { LocationId.HerosOverlook, LocationId.WhisperingWoods, LocationId.MisthavenPort, LocationId.Oakheaven, LocationId.Ashtonia, LocationId.WhisperingWoods, LocationId.TheBonePeaks, LocationId.DarkstormKeep, LocationId.HerosOverlook })]
+    [InlineData(RaceType.Orc, new[] { LocationId.HerosOverlook, LocationId.Ashtonia, LocationId.MisthavenPort, LocationId.Oakheaven, LocationId.Ashtonia, LocationId.WhisperingWoods, LocationId.TheBonePeaks, LocationId.DarkstormKeep, LocationId.HerosOverlook })]
+    [InlineData(RaceType.Dwarf, new[] { LocationId.HerosOverlook, LocationId.TheBonePeaks, LocationId.MisthavenPort, LocationId.Oakheaven, LocationId.Ashtonia, LocationId.WhisperingWoods, LocationId.TheBonePeaks, LocationId.DarkstormKeep, LocationId.HerosOverlook })]
     public void GetRecommendedRoute_ReturnsConfiguredRoute(RaceType raceType, LocationId[] expectedLocations)
     {
         var route = _provider.GetRecommendedRoute(raceType);
 
         Assert.Equal(expectedLocations, route.Steps.OrderBy(step => step.Order).Select(step => step.LocationId));
+        Assert.Equal(Enumerable.Range(1, 9), route.Steps.OrderBy(step => step.Order).Select(step => step.Order));
         Assert.Equal(6, route.FragmentLocationsFlexibleAfterMainQuestId);
-        Assert.Equal(new[] { LocationId.WhisperingWoods, LocationId.Ashtonia, LocationId.TheBonePeaks }, route.FlexibleFragmentLocationIds);
+        Assert.Equal(new[] { LocationId.Ashtonia, LocationId.WhisperingWoods, LocationId.TheBonePeaks }, route.FlexibleFragmentLocationIds);
     }
 
     [Fact]
-    public void GetRecommendedRoute_ReturnsDwarfExteriorAndInteriorBonePeakSteps()
+    public void GetRecommendedRoute_DistinguishesOpeningAndFinalHerosOverlookSteps()
     {
-        var dwarfRoute = _provider.GetRecommendedRoute(RaceType.Dwarf);
+        var route = _provider.GetRecommendedRoute(RaceType.Human);
 
-        Assert.Equal(new[]
-        {
-            LocationId.HerosOverlook, LocationId.TheBonePeaks, LocationId.MisthavenPort,
-            LocationId.Oakheaven, LocationId.WhisperingWoods, LocationId.Ashtonia,
-            LocationId.TheBonePeaks, LocationId.DarkstormKeep, LocationId.HerosOverlook
-        }, dwarfRoute.Steps.OrderBy(step => step.Order).Select(step => step.LocationId));
-
-        Assert.Equal("Exterior", dwarfRoute.Steps.Single(step => step.Order == 2).RouteSegment);
-        Assert.Equal("Interior", dwarfRoute.Steps.Single(step => step.Order == 7).RouteSegment);
+        Assert.Equal(LocationId.HerosOverlook, route.Steps.Single(step => step.Order == 1).LocationId);
+        Assert.Equal(LocationId.HerosOverlook, route.Steps.Single(step => step.Order == 9).LocationId);
     }
 
     [Fact]
@@ -44,6 +39,6 @@ public class LocationRouteProviderTests
 
         var second = _provider.GetRecommendedRoute(RaceType.Human);
 
-        Assert.Equal(8, second.Steps.Count);
+        Assert.Equal(9, second.Steps.Count);
     }
 }

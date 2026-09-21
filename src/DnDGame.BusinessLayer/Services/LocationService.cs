@@ -29,6 +29,15 @@ public sealed class LocationService : ILocationService
     // ILocationUnlockEngine instead of depending on each other).
     private static readonly int[] CrownFragmentQuestIds = { 7, 8, 9 };
     private const int HeroOverlookFinaleQuestId = 13;
+    private const int OpeningRouteOrder = 1;
+    private const int RaceSpecificRouteOrder = 2;
+    private const int MisthavenRouteOrder = 3;
+    private const int OakheavenRouteOrder = 4;
+    private const int AshtoniaFragmentRouteOrder = 5;
+    private const int WhisperingWoodsFragmentRouteOrder = 6;
+    private const int BonePeaksFragmentRouteOrder = 7;
+    private const int DarkstormKeepRouteOrder = 8;
+    private const int FinalReturnRouteOrder = 9;
 
     private readonly ILocationDefinitionRepository _locationDefinitionRepository;
     private readonly ILocationProgressRepository _locationProgressRepository;
@@ -108,6 +117,8 @@ public sealed class LocationService : ILocationService
         var (_, progressByLocation) = await BuildUnlockContextAsync(character);
         var route = _locationRouteProvider.GetRecommendedRoute(race);
         var definitions = (await _locationDefinitionRepository.GetAllAsync()).ToDictionary(d => d.Id);
+        var currentScene = await GetCurrentStorySceneAsync(character);
+        var routePhase = currentScene is null ? null : ResolveRoutePhase(currentScene);
 
         return route.Steps
             .OrderBy(step => step.Order)
@@ -115,15 +126,18 @@ public sealed class LocationService : ILocationService
             {
                 progressByLocation.TryGetValue(step.LocationId, out var progress);
                 definitions.TryGetValue(step.LocationId, out var definition);
+                var isCurrent = routePhase?.CurrentOrder == step.Order;
+                var isCompleted = routePhase is not null && step.Order < routePhase.ProgressOrder;
+
                 return new LocationRouteDto
                 {
                     Order = step.Order,
                     LocationId = (int)step.LocationId,
                     LocationName = definition?.Name ?? step.LocationId.ToString(),
-                    Status = StatusText(progress),
+                    Status = RouteStatusText(step, routePhase, progress),
                     RecommendedLevel = definition?.RecommendedMinimumLevel ?? 1,
-                    IsCurrent = progress?.Status == LocationStatus.Current,
-                    IsCompleted = progress?.Completed ?? false
+                    IsCurrent = isCurrent,
+                    IsCompleted = isCompleted
                 };
             })
             .ToList();
@@ -287,6 +301,58 @@ public sealed class LocationService : ILocationService
         return await Task.FromResult(result.Data);
     }
 
+    private async Task<StoryScene?> GetCurrentStorySceneAsync(PlayerCharacter character)
+    {
+        var sessionId = await ResolveSessionIdForCharacterAsync(character);
+        var scenarioProgress = await _scenarioProgressRepository.GetByGameSessionAsync(sessionId);
+        if (scenarioProgress is null || scenarioProgress.CurrentSceneId <= 0)
+        {
+            return null;
+        }
+
+        return await _storySceneRepository.GetByIdAsync(scenarioProgress.CurrentSceneId)
+            ?? throw new DomainException(
+                ErrorCodes.NotFound,
+                $"Scene {scenarioProgress.CurrentSceneId} was not found in the catalog.");
+    }
+
+    private static RoutePresentationPhase ResolveRoutePhase(StoryScene currentScene)
+    {
+        return currentScene.Id switch
+        {
+            >= 900 and <= 1004 => CurrentRouteStep(OpeningRouteOrder),
+            1205 => BetweenRouteSteps(OpeningRouteOrder),
+            >= 1201 and <= 1242 => CurrentRouteStep(RaceSpecificRouteOrder),
+            >= 2003 and < 3005 => CurrentRouteStep(MisthavenRouteOrder),
+            >= 3005 and < 4008 => CurrentRouteStep(OakheavenRouteOrder),
+            4100 => BetweenRouteSteps(OakheavenRouteOrder),
+            >= 4008 and < 5000 => CurrentRouteStep(OrderOfFragmentLocation((LocationId)currentScene.LocationId)),
+            >= 5012 and < 6014 => CurrentRouteStep(DarkstormKeepRouteOrder),
+            >= 6014 and <= 6017 => CurrentRouteStep(FinalReturnRouteOrder),
+            6101 or 6103 or 6105 or 6106 or 6107 or 6108 => CurrentRouteStep(FinalReturnRouteOrder),
+            6102 => CurrentRouteStep(DarkstormKeepRouteOrder),
+            6104 => CurrentRouteStep(BonePeaksFragmentRouteOrder),
+            _ => throw new DomainException(ErrorCodes.Conflict, $"Scene {currentScene.Id} is not part of the authored route.")
+        };
+    }
+
+    private static RoutePresentationPhase CurrentRouteStep(int order) => new(order, order);
+
+    private static RoutePresentationPhase BetweenRouteSteps(int completedThroughOrder) => new(completedThroughOrder + 1, null);
+
+    private static int OrderOfFragmentLocation(LocationId locationId)
+    {
+        return locationId switch
+        {
+            LocationId.Ashtonia => AshtoniaFragmentRouteOrder,
+            LocationId.WhisperingWoods => WhisperingWoodsFragmentRouteOrder,
+            LocationId.TheBonePeaks => BonePeaksFragmentRouteOrder,
+            _ => throw new DomainException(
+                ErrorCodes.Conflict,
+                $"Location {locationId} is not part of the authored fragment route.")
+        };
+    }
+
     /// <summary>
     /// Persists the outcome of a travel action: the previous Current location (if
     /// any) goes back to Available, and the destination becomes Current. Never
@@ -374,6 +440,35 @@ public sealed class LocationService : ILocationService
     private static string StatusText(LocationProgress? progress)
     {
         return (progress?.Status ?? LocationStatus.Locked).ToString();
+    }
+
+    private static string RouteStatusText(
+        LocationRouteStep step,
+        RoutePresentationPhase? routePhase,
+        LocationProgress? progress)
+    {
+        if (routePhase is null)
+        {
+            var fallbackStatus = progress?.Status ?? LocationStatus.Locked;
+            return fallbackStatus is LocationStatus.Current or LocationStatus.Completed
+                ? LocationStatus.Available.ToString()
+                : fallbackStatus.ToString();
+        }
+
+        if (routePhase.CurrentOrder == step.Order)
+        {
+            return LocationStatus.Current.ToString();
+        }
+
+        if (step.Order < routePhase.ProgressOrder)
+        {
+            return LocationStatus.Completed.ToString();
+        }
+
+        var status = progress?.Status ?? LocationStatus.Locked;
+        return status is LocationStatus.Current or LocationStatus.Completed
+            ? LocationStatus.Available.ToString()
+            : status.ToString();
     }
 
     private static string ToSlug(string name)
@@ -502,4 +597,6 @@ public sealed class LocationService : ILocationService
             throw new DomainException(ErrorCodes.ValidationError, string.Join(" ", validation.Errors));
         }
     }
+
+    private sealed record RoutePresentationPhase(int ProgressOrder, int? CurrentOrder);
 }

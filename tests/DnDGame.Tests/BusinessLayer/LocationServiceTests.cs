@@ -118,22 +118,154 @@ public class LocationServiceTests
         Assert.Equal(ErrorCodes.NotFound, exception.ErrorCode);
     }
 
-    [Fact]
-    public async Task GetRouteForPlayerAsync_ReturnsTheCharactersRaceRoute_StartingAtHerosOverlook()
+    [Theory]
+    [InlineData((int)RaceType.Human, new[] { LocationId.HerosOverlook, LocationId.MisthavenPort, LocationId.MisthavenPort, LocationId.Oakheaven, LocationId.Ashtonia, LocationId.WhisperingWoods, LocationId.TheBonePeaks, LocationId.DarkstormKeep, LocationId.HerosOverlook })]
+    [InlineData((int)RaceType.Elf, new[] { LocationId.HerosOverlook, LocationId.WhisperingWoods, LocationId.MisthavenPort, LocationId.Oakheaven, LocationId.Ashtonia, LocationId.WhisperingWoods, LocationId.TheBonePeaks, LocationId.DarkstormKeep, LocationId.HerosOverlook })]
+    [InlineData((int)RaceType.Orc, new[] { LocationId.HerosOverlook, LocationId.Ashtonia, LocationId.MisthavenPort, LocationId.Oakheaven, LocationId.Ashtonia, LocationId.WhisperingWoods, LocationId.TheBonePeaks, LocationId.DarkstormKeep, LocationId.HerosOverlook })]
+    [InlineData((int)RaceType.Dwarf, new[] { LocationId.HerosOverlook, LocationId.TheBonePeaks, LocationId.MisthavenPort, LocationId.Oakheaven, LocationId.Ashtonia, LocationId.WhisperingWoods, LocationId.TheBonePeaks, LocationId.DarkstormKeep, LocationId.HerosOverlook })]
+    public async Task GetRouteForPlayerAsync_ReturnsAuthoredRaceRoute(int raceId, LocationId[] expectedLocations)
     {
-        var (service, _, _) = CreateScenario(raceId: (int)RaceType.Dwarf);
+        var (service, _, _) = CreateScenario(raceId: raceId);
 
         var route = await service.GetRouteForPlayerAsync(CurrentPlayerId);
 
-        Assert.Equal((int)LocationId.HerosOverlook, route.OrderBy(step => step.Order).First().LocationId);
-        Assert.Contains(route, step => step.LocationId == (int)LocationId.TheBonePeaks);
+        AssertRoute(route, expectedLocations);
         Assert.All(route, step =>
         {
-            Assert.True(step.Order > 0);
             Assert.False(string.IsNullOrWhiteSpace(step.LocationName));
             Assert.False(string.IsNullOrWhiteSpace(step.Status));
             Assert.True(step.RecommendedLevel > 0);
         });
+    }
+
+    [Fact]
+    public async Task GetRouteForPlayerAsync_HumanRaceSpecificMisthaven_IsOrderTwo()
+    {
+        var (service, store, _) = CreateScenario(raceId: (int)RaceType.Human);
+        SetCurrentScene(store, 1203);
+
+        var route = await service.GetRouteForPlayerAsync(CurrentPlayerId);
+
+        AssertCurrentStep(route, order: 2, locationId: LocationId.MisthavenPort);
+        Assert.False(route.Single(step => step.Order == 3).IsCurrent);
+    }
+
+    [Fact]
+    public async Task GetRouteForPlayerAsync_HumanPostConvergenceMisthaven_IsOrderThree()
+    {
+        var (service, store, _) = CreateScenario(raceId: (int)RaceType.Human);
+        SetCurrentScene(store, 2003);
+
+        var route = await service.GetRouteForPlayerAsync(CurrentPlayerId);
+
+        AssertCurrentStep(route, order: 3, locationId: LocationId.MisthavenPort);
+        Assert.True(route.Single(step => step.Order == 2).IsCompleted);
+    }
+
+    [Fact]
+    public async Task GetRouteForPlayerAsync_RaceBranchInterstitial_HasNoCurrentStep()
+    {
+        var (service, store, _) = CreateScenario(raceId: (int)RaceType.Human);
+        SetCurrentScene(store, 1205);
+
+        var route = await service.GetRouteForPlayerAsync(CurrentPlayerId);
+
+        AssertRouteProgress(route, currentOrder: null, completedThroughOrder: 1);
+        Assert.False(route.Single(step => step.Order == 2).IsCompleted);
+        Assert.False(route.Single(step => step.Order == 3).IsCompleted);
+    }
+
+    [Fact]
+    public async Task GetRouteForPlayerAsync_ActFourGatheringInterstitial_DoesNotRegressBelowOakheaven()
+    {
+        var (service, store, _) = CreateScenario(raceId: (int)RaceType.Human);
+        SetCurrentScene(store, 4100);
+
+        var route = await service.GetRouteForPlayerAsync(CurrentPlayerId);
+
+        AssertRouteProgress(route, currentOrder: null, completedThroughOrder: 4);
+        Assert.False(route.Single(step => step.Order == 5).IsCompleted);
+    }
+
+    [Theory]
+    [InlineData((int)RaceType.Elf, 4009, 6, LocationId.WhisperingWoods)]
+    [InlineData((int)RaceType.Orc, 4008, 5, LocationId.Ashtonia)]
+    [InlineData((int)RaceType.Dwarf, 4010, 7, LocationId.TheBonePeaks)]
+    public async Task GetRouteForPlayerAsync_RepeatedRaceLocationFragmentScenes_ResolveToFragmentStep(
+        int raceId,
+        int currentSceneId,
+        int expectedOrder,
+        LocationId expectedLocationId)
+    {
+        var (service, store, _) = CreateScenario(raceId: raceId);
+        SetCurrentScene(store, currentSceneId);
+
+        var route = await service.GetRouteForPlayerAsync(CurrentPlayerId);
+
+        AssertCurrentStep(route, expectedOrder, expectedLocationId);
+    }
+
+    [Fact]
+    public async Task GetRouteForPlayerAsync_OpeningAndFinalHerosOverlook_AreDistinctSteps()
+    {
+        var (openingService, openingStore, _) = CreateScenario(raceId: (int)RaceType.Human);
+        SetCurrentScene(openingStore, 1002);
+        var (finalService, finalStore, _) = CreateScenario(raceId: (int)RaceType.Human);
+        SetCurrentScene(finalStore, 6014);
+
+        var openingRoute = await openingService.GetRouteForPlayerAsync(CurrentPlayerId);
+        var finalRoute = await finalService.GetRouteForPlayerAsync(CurrentPlayerId);
+
+        AssertCurrentStep(openingRoute, order: 1, locationId: LocationId.HerosOverlook);
+        AssertCurrentStep(finalRoute, order: 9, locationId: LocationId.HerosOverlook);
+    }
+
+    [Theory]
+    [InlineData(6102, 8, LocationId.DarkstormKeep)]
+    [InlineData(6104, 7, LocationId.TheBonePeaks)]
+    public async Task GetRouteForPlayerAsync_EndingScenesOutsideHerosOverlook_AreNotFinalReturn(
+        int currentSceneId,
+        int expectedOrder,
+        LocationId expectedLocationId)
+    {
+        var (service, store, _) = CreateScenario(raceId: (int)RaceType.Dwarf);
+        SetCurrentScene(store, currentSceneId);
+
+        var route = await service.GetRouteForPlayerAsync(CurrentPlayerId);
+
+        AssertCurrentStep(route, expectedOrder, expectedLocationId);
+        Assert.False(route.Single(step => step.Order == 9).IsCurrent);
+    }
+
+    [Fact]
+    public async Task GetRouteForPlayerAsync_AuthoredProgression_IsMonotonicThroughInterstitials()
+    {
+        var progression = new (int SceneId, int? CurrentOrder, int CompletedThroughOrder)[]
+        {
+            (1002, 1, 0),
+            (1205, null, 1),
+            (1203, 2, 1),
+            (2003, 3, 2),
+            (3006, 4, 3),
+            (4100, null, 4),
+            (4008, 5, 4),
+            (5101, 8, 7),
+            (6014, 9, 8)
+        };
+        var previousRouteCursor = 0;
+
+        foreach (var (sceneId, currentOrder, completedThroughOrder) in progression)
+        {
+            var (service, store, _) = CreateScenario(raceId: (int)RaceType.Human);
+            SetCurrentScene(store, sceneId);
+
+            var route = await service.GetRouteForPlayerAsync(CurrentPlayerId);
+
+            AssertRouteProgress(route, currentOrder, completedThroughOrder);
+            var routeCursor = currentOrder ?? completedThroughOrder;
+            Assert.True(routeCursor >= previousRouteCursor);
+            previousRouteCursor = routeCursor;
+        }
     }
 
     // --- Enemies (delegates to ILocationEncounterService) ---
@@ -291,6 +423,70 @@ public class LocationServiceTests
             GameSessionId = 1,
             CurrentSceneId = TravelStartSceneId
         });
+    }
+
+    private static void SetCurrentScene(InMemoryGameDataStore store, int currentSceneId)
+    {
+        store.ScenarioProgresses.Clear();
+        store.ScenarioProgresses.Add(new ScenarioProgress
+        {
+            GameSessionId = 1,
+            CurrentSceneId = currentSceneId
+        });
+    }
+
+    private static void AssertRoute(IReadOnlyList<LocationRouteDto> route, IReadOnlyList<LocationId> expectedLocations)
+    {
+        Assert.Equal(expectedLocations.Count, route.Count);
+        Assert.Equal(Enumerable.Range(1, expectedLocations.Count), route.Select(step => step.Order));
+        Assert.Equal(expectedLocations.Select(locationId => (int)locationId), route.Select(step => step.LocationId));
+    }
+
+    private static void AssertCurrentStep(IReadOnlyList<LocationRouteDto> route, int order, LocationId locationId)
+    {
+        var current = Assert.Single(route, step => step.IsCurrent);
+        Assert.Equal(order, current.Order);
+        Assert.Equal((int)locationId, current.LocationId);
+        Assert.Equal(LocationStatus.Current.ToString(), current.Status);
+        Assert.False(current.IsCompleted);
+    }
+
+    private static void AssertRouteProgress(
+        IReadOnlyList<LocationRouteDto> route,
+        int? currentOrder,
+        int completedThroughOrder)
+    {
+        if (currentOrder is int order)
+        {
+            var current = Assert.Single(route, step => step.IsCurrent);
+            Assert.Equal(order, current.Order);
+            Assert.Equal(LocationStatus.Current.ToString(), current.Status);
+            Assert.False(current.IsCompleted);
+        }
+        else
+        {
+            Assert.DoesNotContain(route, step => step.IsCurrent);
+        }
+
+        foreach (var step in route)
+        {
+            if (step.Order <= completedThroughOrder)
+            {
+                Assert.True(step.IsCompleted);
+                Assert.Equal(LocationStatus.Completed.ToString(), step.Status);
+            }
+            else if (currentOrder == step.Order)
+            {
+                Assert.False(step.IsCompleted);
+                Assert.Equal(LocationStatus.Current.ToString(), step.Status);
+            }
+            else
+            {
+                Assert.False(step.IsCompleted);
+                Assert.NotEqual(LocationStatus.Current.ToString(), step.Status);
+                Assert.NotEqual(LocationStatus.Completed.ToString(), step.Status);
+            }
+        }
     }
 
     private static StoryScene Scene(int id, LocationId locationId, params StoryChoice[] choices)

@@ -11,9 +11,10 @@ public static class LocationRouteRegistry
             [RaceType.Human] = CreateRoute(RaceType.Human,
                 (LocationId.HerosOverlook, null),
                 (LocationId.MisthavenPort, null),
+                (LocationId.MisthavenPort, null),
                 (LocationId.Oakheaven, null),
-                (LocationId.WhisperingWoods, null),
                 (LocationId.Ashtonia, null),
+                (LocationId.WhisperingWoods, null),
                 (LocationId.TheBonePeaks, null),
                 (LocationId.DarkstormKeep, null),
                 (LocationId.HerosOverlook, null)),
@@ -23,6 +24,7 @@ public static class LocationRouteRegistry
                 (LocationId.MisthavenPort, null),
                 (LocationId.Oakheaven, null),
                 (LocationId.Ashtonia, null),
+                (LocationId.WhisperingWoods, null),
                 (LocationId.TheBonePeaks, null),
                 (LocationId.DarkstormKeep, null),
                 (LocationId.HerosOverlook, null)),
@@ -31,18 +33,19 @@ public static class LocationRouteRegistry
                 (LocationId.Ashtonia, null),
                 (LocationId.MisthavenPort, null),
                 (LocationId.Oakheaven, null),
+                (LocationId.Ashtonia, null),
                 (LocationId.WhisperingWoods, null),
                 (LocationId.TheBonePeaks, null),
                 (LocationId.DarkstormKeep, null),
                 (LocationId.HerosOverlook, null)),
             [RaceType.Dwarf] = CreateRoute(RaceType.Dwarf,
                 (LocationId.HerosOverlook, null),
-                (LocationId.TheBonePeaks, "Exterior"),
+                (LocationId.TheBonePeaks, null),
                 (LocationId.MisthavenPort, null),
                 (LocationId.Oakheaven, null),
-                (LocationId.WhisperingWoods, null),
                 (LocationId.Ashtonia, null),
-                (LocationId.TheBonePeaks, "Interior"),
+                (LocationId.WhisperingWoods, null),
+                (LocationId.TheBonePeaks, null),
                 (LocationId.DarkstormKeep, null),
                 (LocationId.HerosOverlook, null))
         };
@@ -68,8 +71,8 @@ public static class LocationRouteRegistry
         FragmentLocationsFlexibleAfterMainQuestId = 6,
         FlexibleFragmentLocationIds = new List<LocationId>
         {
-            LocationId.WhisperingWoods,
             LocationId.Ashtonia,
+            LocationId.WhisperingWoods,
             LocationId.TheBonePeaks
         }
     };
