@@ -36,6 +36,7 @@ public class InMemoryGameDataStore
     public List<Enemy> Enemies { get; } = new();
     public List<Location> Locations { get; } = new();
     public List<LocationDefinition> LocationDefinitions { get; } = new();
+    public List<LocationEncounterDefinition> LocationEncounterDefinitions { get; } = new();
     public List<Quest> Quests { get; } = new();
     public List<StoryScene> StoryScenes { get; } = new();
     public List<Adventure> Adventures { get; } = new();
@@ -63,6 +64,10 @@ public class InMemoryGameDataStore
     // engine or the quest service) ---
     public List<PlayerQuest> PlayerQuests { get; } = new();
     public List<ScenarioProgress> ScenarioProgresses { get; } = new();
+
+    // --- Runtime / gameplay data (empty until a quest completion unlocks a
+    // location for a player — see QuestService.EvaluateLocationUnlocksAsync) ---
+    public List<LocationProgress> LocationProgresses { get; } = new();
 
     // --- Auth data (empty until someone registers). Deliberately not linked to
     // Characters — there is no Account-to-PlayerCharacter relationship yet.

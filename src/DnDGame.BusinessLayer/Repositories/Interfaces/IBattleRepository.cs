@@ -12,6 +12,9 @@ public interface IBattleRepository
     /// </summary>
     Task<Battle?> GetActiveByGameSessionIdAsync(int gameSessionId);
 
+    /// <summary>Every battle (any status) recorded for a game session, including finished ones.</summary>
+    Task<IReadOnlyList<Battle>> GetByGameSessionIdAsync(int gameSessionId);
+
     Task<Battle> AddAsync(Battle battle);
 
     /// <summary>

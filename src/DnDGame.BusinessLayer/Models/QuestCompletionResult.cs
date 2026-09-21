@@ -1,3 +1,5 @@
+using DnDGame.Domain.Entities.Locations;
+
 namespace DnDGame.BusinessLayer.Models;
 
 /// <summary>
@@ -11,7 +13,8 @@ public sealed record QuestCompletionResult(
     int ExperienceGained,
     int PreviousLevel,
     int CurrentLevel,
-    int SkillPointsGained)
+    int SkillPointsGained,
+    IReadOnlyList<LocationId> NewLocationIds)
 {
     public int LevelsGained => CurrentLevel - PreviousLevel;
     public bool DidLevelUp => LevelsGained > 0;
