@@ -37,6 +37,7 @@ public class ScenarioService : IScenarioService
     private readonly IQuestRepository _questRepository;
     private readonly IPlayerQuestRepository _playerQuestRepository;
     private readonly ILocationRepository _locationRepository;
+    private readonly IExplicitLocationUnlockService _explicitLocationUnlockService;
 
     public ScenarioService(
         IScenarioEngine engine,
@@ -46,7 +47,8 @@ public class ScenarioService : IScenarioService
         IStorySceneRepository sceneRepository,
         IQuestRepository questRepository,
         IPlayerQuestRepository playerQuestRepository,
-        ILocationRepository locationRepository)
+        ILocationRepository locationRepository,
+        IExplicitLocationUnlockService explicitLocationUnlockService)
     {
         _engine = engine;
         _characterRepository = characterRepository;
@@ -56,6 +58,7 @@ public class ScenarioService : IScenarioService
         _questRepository = questRepository;
         _playerQuestRepository = playerQuestRepository;
         _locationRepository = locationRepository;
+        _explicitLocationUnlockService = explicitLocationUnlockService;
     }
 
     public async Task<StorySceneDto> GetCurrentAsync(int playerId)
@@ -170,8 +173,7 @@ public class ScenarioService : IScenarioService
         }
 
         var state = RequireEngineOk(_engine.ResumeScenario(progress, Array.Empty<int>(), Array.Empty<int>()));
-        var previouslyUnlockedLocationIds = progress.UnlockedLocationIds.ToHashSet();
-        RequireEngineOk(_engine.SelectChoice(
+        var selection = RequireEngineOk(_engine.SelectChoice(
             state,
             scene,
             character,
@@ -181,9 +183,8 @@ public class ScenarioService : IScenarioService
             playerQuests));
 
         await PersistRunAsync(progress, character, playerQuests, progressWasCreated: false);
-        var newLocationIds = progress.UnlockedLocationIds
-            .Except(previouslyUnlockedLocationIds)
-            .ToList();
+
+        var newLocationIds = await UnlockExplicitLocationsAsync(character, selection.AppliedConsequences);
         return ScenarioProgressDto.FromDomain(progress, newLocationIds);
     }
 
@@ -262,6 +263,15 @@ public class ScenarioService : IScenarioService
         {
             await _playerQuestRepository.AddAsync(playerQuest);
         }
+    }
+
+    private async Task<IReadOnlyCollection<int>> UnlockExplicitLocationsAsync(
+        PlayerCharacter character,
+        IReadOnlyList<ChoiceConsequence> appliedConsequences)
+    {
+        var locationIds = appliedConsequences.SelectMany(consequence => consequence.NewLocationIds);
+        var newlyUnlocked = await _explicitLocationUnlockService.UnlockExplicitLocationsAsync(character, locationIds);
+        return newlyUnlocked.Select(locationId => (int)locationId).ToList();
     }
 
     private static int EntrySceneId(IReadOnlyList<StoryScene> scenes)

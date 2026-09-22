@@ -36,13 +36,6 @@ public class ScenarioProgressDto
         CompanionLoyalty = new Dictionary<int, int>(progress.CompanionLoyalty),
         QuestProgress = new Dictionary<int, int>(progress.QuestProgress),
         StoryFlags = new Dictionary<string, bool>(progress.StoryFlags),
-        NewLocationIds = NormalizeLocationIds(newLocationIds)
+        NewLocationIds = newLocationIds is null ? Array.Empty<int>() : newLocationIds.Distinct().ToList()
     };
-
-    private static IReadOnlyCollection<int> NormalizeLocationIds(IEnumerable<int>? locationIds)
-    {
-        return locationIds is null
-            ? Array.Empty<int>()
-            : locationIds.Distinct().ToList();
-    }
 }

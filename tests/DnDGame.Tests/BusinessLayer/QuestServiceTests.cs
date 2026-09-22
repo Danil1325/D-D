@@ -293,10 +293,89 @@ public class QuestServiceTests
         await service.StartQuestAsync(1, quest.Id);
         var result = await service.UpdateObjectiveAsync(1, quest.Id, 51401);
 
-        Assert.Equal(new[] { 4 }, result.NewLocationIds);
-        Assert.Contains(4, Assert.Single(store.ScenarioProgresses).UnlockedLocationIds);
-        Assert.Null(result.Completed);
+    [Fact]
+    public async Task CompleteQuest_WithExplicitLocationReward_ReturnsAndPersistsNewLocationId()
+    {
+        var (service, store, _, _, _) = CreateScenario();
+        SeedAvailableLocation(store, LocationId.HerosOverlook);
+        var quest = AddSyntheticQuest(store, 520);
+        quest.Rewards = new List<QuestReward>
+        {
+            new() { NewLocationIds = new List<int> { (int)LocationId.Oakheaven } }
+        };
+
+        await service.StartQuestAsync(1, quest.Id);
+        var result = await service.CompleteQuestAsync(1, quest.Id);
+
+        Assert.Equal(new[] { LocationId.Oakheaven }, result.NewLocationIds);
+        var progress = Assert.Single(store.LocationProgresses, progress =>
+            progress.PlayerId == CurrentPlayerId &&
+            progress.LocationId == LocationId.Oakheaven);
+        Assert.Equal(LocationStatus.Available, progress.Status);
     }
+
+    [Fact]
+    public async Task CompleteQuest_WithAlreadyUnlockedExplicitLocation_ReturnsNoNewLocationIds()
+    {
+        var (service, store, _, _, _) = CreateScenario();
+        SeedAvailableLocation(store, LocationId.HerosOverlook);
+        SeedAvailableLocation(store, LocationId.Oakheaven);
+        var quest = AddSyntheticQuest(store, 521);
+        quest.Rewards = new List<QuestReward>
+        {
+            new() { NewLocationIds = new List<int> { (int)LocationId.Oakheaven } }
+        };
+
+        await service.StartQuestAsync(1, quest.Id);
+        var result = await service.CompleteQuestAsync(1, quest.Id);
+
+        Assert.Empty(result.NewLocationIds);
+        Assert.Single(store.LocationProgresses, progress =>
+            progress.PlayerId == CurrentPlayerId &&
+            progress.LocationId == LocationId.Oakheaven);
+    }
+
+    [Fact]
+    public async Task CompleteQuest_WithExplicitAndEngineUnlockForSameLocation_ReturnsLocationOnce()
+    {
+        var (service, store, _, _, _) = CreateScenario();
+        var mq01 = QuestId(store, "MQ-01");
+        var quest = store.Quests.Single(quest => quest.Id == mq01);
+        quest.Rewards.Add(new QuestReward
+        {
+            NewLocationIds = new List<int> { (int)LocationId.MisthavenPort }
+        });
+
+        await service.StartQuestAsync(1, mq01);
+        var result = await service.CompleteQuestAsync(1, mq01);
+
+        Assert.Equal(1, result.NewLocationIds.Count(locationId => locationId == LocationId.MisthavenPort));
+    }
+
+    private static void SeedCompletedQuest(InMemoryGameDataStore store, int questId, int gameSessionId = 1)
+    {
+        store.PlayerQuests.Add(new PlayerQuest
+        {
+            GameSessionId = gameSessionId,
+            QuestId = questId,
+            Status = QuestStatus.Completed,
+            StartedAt = DateTime.UtcNow,
+            CompletedAt = DateTime.UtcNow
+        });
+    }
+
+    private static void SeedAvailableLocation(InMemoryGameDataStore store, LocationId locationId)
+    {
+        store.LocationProgresses.Add(new LocationProgress
+        {
+            PlayerId = CurrentPlayerId,
+            LocationId = locationId,
+            Status = LocationStatus.Available,
+            UnlockedAtLevel = 1
+        });
+    }
+
+    // --- Objectives ---
 
     [Fact]
     public async Task UpdateObjective_ObjectiveRewardAlreadyUnlockedLocation_IsNotReturnedAgain()
@@ -312,6 +391,45 @@ public class QuestServiceTests
 
         Assert.Empty(result.NewLocationIds);
         Assert.Contains(4, Assert.Single(store.ScenarioProgresses).UnlockedLocationIds);
+    }
+
+    [Fact]
+    public async Task UpdateObjective_WithExplicitLocationReward_ReturnsAndPersistsNewLocationId()
+    {
+        var (service, store, _, _, _) = CreateScenario();
+        var quest = AddSyntheticQuest(store, 522);
+        quest.Objectives = new List<QuestObjective>
+        {
+            new()
+            {
+                Id = 52201,
+                Description = "Complete the first objective",
+                ObjectiveType = ObjectiveType.Talk,
+                RequiredAmount = 1,
+                Rewards = new List<QuestReward>
+                {
+                    new() { NewLocationIds = new List<int> { (int)LocationId.TheBonePeaks } }
+                }
+            },
+            new()
+            {
+                Id = 52202,
+                Description = "Complete the second objective",
+                ObjectiveType = ObjectiveType.Talk,
+                RequiredAmount = 1
+            }
+        };
+
+        await service.StartQuestAsync(1, quest.Id);
+        var result = await service.UpdateObjectiveAsync(1, quest.Id, 52201);
+
+        Assert.True(result.ObjectiveCompleted);
+        Assert.Null(result.Completed);
+        Assert.Equal(new[] { (int)LocationId.TheBonePeaks }, result.NewLocationIds);
+        var progress = Assert.Single(store.LocationProgresses, progress =>
+            progress.PlayerId == CurrentPlayerId &&
+            progress.LocationId == LocationId.TheBonePeaks);
+        Assert.Equal(LocationStatus.Available, progress.Status);
     }
 
     [Fact]
@@ -530,7 +648,10 @@ public class QuestServiceTests
             new FixedCurrentPlayerService(CurrentPlayerId),
             new MockLocationProgressRepository(store),
             new LocationUnlockEngine(),
-            new LocationRouteProvider());
+            new LocationRouteProvider(),
+            new ExplicitLocationUnlockService(
+                new MockLocationDefinitionRepository(store),
+                new MockLocationProgressRepository(store)));
     }
 
     private static int QuestId(InMemoryGameDataStore store, string code)

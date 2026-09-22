@@ -1,7 +1,9 @@
 using System.Globalization;
+using System.Text;
 using DnDGame.BusinessLayer.Common.Errors;
 using DnDGame.BusinessLayer.Common.Exceptions;
 using DnDGame.BusinessLayer.Dtos.Locations;
+using DnDGame.BusinessLayer.Dtos.Scenarios;
 using DnDGame.BusinessLayer.Models;
 using DnDGame.BusinessLayer.Repositories.Interfaces;
 using DnDGame.BusinessLayer.Services.Interfaces;
@@ -27,6 +29,15 @@ public sealed class LocationService : ILocationService
     // ILocationUnlockEngine instead of depending on each other).
     private static readonly int[] CrownFragmentQuestIds = { 7, 8, 9 };
     private const int HeroOverlookFinaleQuestId = 13;
+    private const int OpeningRouteOrder = 1;
+    private const int RaceSpecificRouteOrder = 2;
+    private const int MisthavenRouteOrder = 3;
+    private const int OakheavenRouteOrder = 4;
+    private const int AshtoniaFragmentRouteOrder = 5;
+    private const int WhisperingWoodsFragmentRouteOrder = 6;
+    private const int BonePeaksFragmentRouteOrder = 7;
+    private const int DarkstormKeepRouteOrder = 8;
+    private const int FinalReturnRouteOrder = 9;
 
     private readonly ILocationDefinitionRepository _locationDefinitionRepository;
     private readonly ILocationProgressRepository _locationProgressRepository;
@@ -38,6 +49,8 @@ public sealed class LocationService : ILocationService
     private readonly ILocationUnlockEngine _locationUnlockEngine;
     private readonly ILocationRouteProvider _locationRouteProvider;
     private readonly ICurrentPlayerService _currentPlayerService;
+    private readonly IScenarioService _scenarioService;
+    private readonly IStorySceneRepository _storySceneRepository;
 
     public LocationService(
         ILocationDefinitionRepository locationDefinitionRepository,
@@ -49,7 +62,9 @@ public sealed class LocationService : ILocationService
         ILocationEncounterService locationEncounterService,
         ILocationUnlockEngine locationUnlockEngine,
         ILocationRouteProvider locationRouteProvider,
-        ICurrentPlayerService currentPlayerService)
+        ICurrentPlayerService currentPlayerService,
+        IScenarioService scenarioService,
+        IStorySceneRepository storySceneRepository)
     {
         _locationDefinitionRepository = locationDefinitionRepository;
         _locationProgressRepository = locationProgressRepository;
@@ -61,82 +76,71 @@ public sealed class LocationService : ILocationService
         _locationUnlockEngine = locationUnlockEngine;
         _locationRouteProvider = locationRouteProvider;
         _currentPlayerService = currentPlayerService;
+        _scenarioService = scenarioService;
+        _storySceneRepository = storySceneRepository;
     }
 
     public async Task<IReadOnlyList<LocationSummaryDto>> GetAllLocationsAsync()
     {
-        var character = await RequireCurrentCharacterAsync();
-        var (context, progressByLocation) = await BuildUnlockContextAsync(character);
         var definitions = await _locationDefinitionRepository.GetAllAsync();
-        var recommendedNext = await RecommendedNextLocationAsync(context);
 
         return definitions
             .OrderBy(definition => definition.Id)
-            .Select(definition => ToSummaryDto(definition, progressByLocation, recommendedNext))
+            .Select(ToSummaryDto)
             .ToList();
     }
 
     public async Task<LocationDetailsDto> GetLocationByIdAsync(LocationId locationId)
     {
         RequireDefinedLocation(locationId);
-        var character = await RequireCurrentCharacterAsync();
-        var (context, progressByLocation) = await BuildUnlockContextAsync(character);
         var definition = await RequireDefinitionAsync(locationId);
-        var recommendedNext = await RecommendedNextLocationAsync(context);
 
-        return ToDetailsDto(definition, progressByLocation, recommendedNext);
+        return ToDetailsDto(definition);
     }
 
-    public async Task<LocationProgressDto> GetProgressForPlayerAsync(int playerId)
+    public async Task<IReadOnlyList<LocationStatusDto>> GetProgressForPlayerAsync(int playerId)
     {
         var character = await RequireCharacterForPlayerAsync(playerId);
-        var (context, progressByLocation) = await BuildUnlockContextAsync(character);
+        var (_, progressByLocation) = await BuildUnlockContextAsync(character);
         var definitions = await _locationDefinitionRepository.GetAllAsync();
-        var recommendedNext = await RecommendedNextLocationAsync(context);
 
-        var summaries = definitions
+        return definitions
             .OrderBy(definition => definition.Id)
-            .Select(definition => ToSummaryDto(definition, progressByLocation, recommendedNext))
+            .Select(definition => ToStatusDto(definition, progressByLocation))
             .ToList();
-
-        return new LocationProgressDto
-        {
-            PlayerId = character.Id,
-            CurrentLocationId = context.CurrentLocationId,
-            RecommendedNextLocationId = recommendedNext,
-            HeroOverlookFinaleUnlocked = context.CompletedQuestIds.Contains(HeroOverlookFinaleQuestId),
-            Locations = summaries
-        };
     }
 
-    public async Task<LocationRouteDto> GetRouteForPlayerAsync(int playerId)
+    public async Task<IReadOnlyList<LocationRouteDto>> GetRouteForPlayerAsync(int playerId)
     {
         var character = await RequireCharacterForPlayerAsync(playerId);
         var race = RequireDefinedRace(character);
         var (_, progressByLocation) = await BuildUnlockContextAsync(character);
         var route = _locationRouteProvider.GetRecommendedRoute(race);
         var definitions = (await _locationDefinitionRepository.GetAllAsync()).ToDictionary(d => d.Id);
+        var currentScene = await GetCurrentStorySceneAsync(character);
+        var routePhase = currentScene is null ? null : ResolveRoutePhase(currentScene);
 
-        var steps = route.Steps
+        return route.Steps
             .OrderBy(step => step.Order)
-            .Select(step => new LocationRouteStepDto
+            .Select(step =>
             {
-                Order = step.Order,
-                LocationId = step.LocationId,
-                LocationName = definitions.TryGetValue(step.LocationId, out var definition) ? definition.Name : step.LocationId.ToString(),
-                RouteSegment = step.RouteSegment,
-                Status = progressByLocation.TryGetValue(step.LocationId, out var progress) ? progress.Status : LocationStatus.Locked,
-                UnlockRequirements = LocationUnlockRequirementDto.FromDomain(step.UnlockRequirement)
+                progressByLocation.TryGetValue(step.LocationId, out var progress);
+                definitions.TryGetValue(step.LocationId, out var definition);
+                var isCurrent = routePhase?.CurrentOrder == step.Order;
+                var isCompleted = routePhase is not null && step.Order < routePhase.ProgressOrder;
+
+                return new LocationRouteDto
+                {
+                    Order = step.Order,
+                    LocationId = (int)step.LocationId,
+                    LocationName = definition?.Name ?? step.LocationId.ToString(),
+                    Status = RouteStatusText(step, routePhase, progress),
+                    RecommendedLevel = definition?.RecommendedMinimumLevel ?? 1,
+                    IsCurrent = isCurrent,
+                    IsCompleted = isCompleted
+                };
             })
             .ToList();
-
-        return new LocationRouteDto
-        {
-            Race = race,
-            Steps = steps,
-            FragmentLocationsFlexibleAfterMainQuestId = route.FragmentLocationsFlexibleAfterMainQuestId,
-            FlexibleFragmentLocationIds = route.FlexibleFragmentLocationIds.ToList()
-        };
     }
 
     public async Task<IReadOnlyList<LocationEnemyDto>> GetAvailableEnemiesAsync(
@@ -150,11 +154,12 @@ public sealed class LocationService : ILocationService
             new EncounterSelectionContext(locationId, sessionId, subLocation));
 
         return selection.AvailableEncounters
+            .GroupBy(option => option.EnemyId)
+            .Select(group => group.First())
             .Select(option => new LocationEnemyDto
             {
-                EnemyId = option.EnemyId,
-                EnemyName = option.EnemyName,
-                Tier = option.Tier
+                Id = option.EnemyId,
+                Name = option.EnemyName
             })
             .ToList();
     }
@@ -163,67 +168,79 @@ public sealed class LocationService : ILocationService
     {
         ArgumentNullException.ThrowIfNull(request);
         RequirePositiveId(request.PlayerId, "playerId");
+        RequirePositiveId((int)request.LocationId, "locationId");
         RequireDefinedLocation(request.LocationId);
 
         var character = await RequireCharacterForPlayerAsync(request.PlayerId);
-        var (context, progressByLocation) = await BuildUnlockContextAsync(character);
-        var definition = await RequireDefinitionAsync(request.LocationId);
+        await RequireDefinitionAsync(request.LocationId);
 
-        LocationUnlockResult outcome;
-        if (context.UnlockedLocationIds.Contains(request.LocationId))
+        var currentScene = await _scenarioService.GetCurrentAsync(request.PlayerId);
+        if (currentScene.LocationId == (int)request.LocationId)
         {
-            // Already unlocked: this is a plain re-visit, not a fresh unlock.
-            // ILocationUnlockEngine.UnlockLocation would reject it (already unlocked),
-            // so ask the engine only for the advisory data (available/next set) and
-            // move CurrentLocationId ourselves.
-            context.CurrentLocationId = request.LocationId;
-
-            var availableResult = _locationUnlockEngine.GetAvailableLocations(context);
-            if (!availableResult.Success || availableResult.Data is null)
-            {
-                throw new DomainException(
-                    availableResult.ErrorCode ?? EngineErrorCodes.LocationInvalidContext, availableResult.Message);
-            }
-
-            var nextResult = _locationUnlockEngine.GetRecommendedNextLocation(context);
-
-            outcome = new LocationUnlockResult
-            {
-                PlayerId = character.Id,
-                LocationId = request.LocationId,
-                Status = LocationStatus.Current,
-                HeroOverlookFinaleUnlocked = context.CompletedQuestIds.Contains(HeroOverlookFinaleQuestId),
-                AvailableLocationIds = availableResult.Data,
-                RecommendedNextLocationId = nextResult.Data
-            };
-        }
-        else
-        {
-            var unlockResult = _locationUnlockEngine.UnlockLocation(context, request.LocationId);
-            if (!unlockResult.Success || unlockResult.Data is null)
-            {
-                throw new DomainException(
-                    unlockResult.ErrorCode ?? EngineErrorCodes.LocationRequirementNotMet, unlockResult.Message);
-            }
-
-            outcome = unlockResult.Data;
+            throw new DomainException(
+                ErrorCodes.Conflict,
+                $"Player {request.PlayerId} is already at location {(int)request.LocationId}.");
         }
 
-        await SetCurrentLocationAsync(progressByLocation, character, request.LocationId);
+        var matchingChoices = await FindChoicesLeadingToLocationAsync(currentScene, request.LocationId);
+        if (matchingChoices.Count == 0)
+        {
+            throw new DomainException(
+                ErrorCodes.Conflict,
+                $"Location {(int)request.LocationId} is not reachable from the current scene.");
+        }
+
+        if (matchingChoices.Count > 1)
+        {
+            throw new DomainException(
+                ErrorCodes.Conflict,
+                $"Location {(int)request.LocationId} is reachable through more than one current choice.");
+        }
+
+        await _scenarioService.SelectChoiceAsync(new SelectChoiceRequest
+        {
+            PlayerId = request.PlayerId,
+            SceneId = currentScene.Id,
+            ChoiceId = matchingChoices[0].Id
+        });
+
+        var resultingScene = await _scenarioService.GetCurrentAsync(request.PlayerId);
+        var resultingLocationId = ToLocationId(resultingScene.LocationId);
+        var currentLocation = await GetLocationByIdAsync(resultingLocationId);
+
+        var progressByLocation = (await _locationProgressRepository.GetByPlayerIdAsync(character.Id))
+            .ToDictionary(progress => progress.LocationId);
+        await SetCurrentLocationAsync(progressByLocation, character, resultingLocationId);
 
         return new TravelToLocationResultDto
         {
-            PlayerId = outcome.PlayerId,
-            LocationId = outcome.LocationId,
-            LocationName = definition.Name,
-            Status = outcome.Status,
-            HeroOverlookFinaleUnlocked = outcome.HeroOverlookFinaleUnlocked,
-            AvailableLocationIds = outcome.AvailableLocationIds,
-            RecommendedNextLocationId = outcome.RecommendedNextLocationId
+            CurrentLocation = currentLocation,
+            CurrentScene = resultingScene
         };
     }
 
     // --- Context building ---
+
+    private async Task<IReadOnlyList<ChoiceDto>> FindChoicesLeadingToLocationAsync(
+        StorySceneDto currentScene,
+        LocationId locationId)
+    {
+        var matches = new List<ChoiceDto>();
+        foreach (var choice in currentScene.Choices.Where(choice => choice.NextSceneId.HasValue))
+        {
+            var destinationScene = await _storySceneRepository.GetByIdAsync(choice.NextSceneId!.Value)
+                ?? throw new DomainException(
+                    ErrorCodes.NotFound,
+                    $"Scene {choice.NextSceneId.Value} was not found in the catalog.");
+
+            if (destinationScene.LocationId == (int)locationId)
+            {
+                matches.Add(choice);
+            }
+        }
+
+        return matches;
+    }
 
     /// <summary>
     /// Builds the LocationUnlockContext ILocationUnlockEngine needs, sourced from the
@@ -284,6 +301,58 @@ public sealed class LocationService : ILocationService
         return await Task.FromResult(result.Data);
     }
 
+    private async Task<StoryScene?> GetCurrentStorySceneAsync(PlayerCharacter character)
+    {
+        var sessionId = await ResolveSessionIdForCharacterAsync(character);
+        var scenarioProgress = await _scenarioProgressRepository.GetByGameSessionAsync(sessionId);
+        if (scenarioProgress is null || scenarioProgress.CurrentSceneId <= 0)
+        {
+            return null;
+        }
+
+        return await _storySceneRepository.GetByIdAsync(scenarioProgress.CurrentSceneId)
+            ?? throw new DomainException(
+                ErrorCodes.NotFound,
+                $"Scene {scenarioProgress.CurrentSceneId} was not found in the catalog.");
+    }
+
+    private static RoutePresentationPhase ResolveRoutePhase(StoryScene currentScene)
+    {
+        return currentScene.Id switch
+        {
+            >= 900 and <= 1004 => CurrentRouteStep(OpeningRouteOrder),
+            1205 => BetweenRouteSteps(OpeningRouteOrder),
+            >= 1201 and <= 1242 => CurrentRouteStep(RaceSpecificRouteOrder),
+            >= 2003 and < 3005 => CurrentRouteStep(MisthavenRouteOrder),
+            >= 3005 and < 4008 => CurrentRouteStep(OakheavenRouteOrder),
+            4100 => BetweenRouteSteps(OakheavenRouteOrder),
+            >= 4008 and < 5000 => CurrentRouteStep(OrderOfFragmentLocation((LocationId)currentScene.LocationId)),
+            >= 5012 and < 6014 => CurrentRouteStep(DarkstormKeepRouteOrder),
+            >= 6014 and <= 6017 => CurrentRouteStep(FinalReturnRouteOrder),
+            6101 or 6103 or 6105 or 6106 or 6107 or 6108 => CurrentRouteStep(FinalReturnRouteOrder),
+            6102 => CurrentRouteStep(DarkstormKeepRouteOrder),
+            6104 => CurrentRouteStep(BonePeaksFragmentRouteOrder),
+            _ => throw new DomainException(ErrorCodes.Conflict, $"Scene {currentScene.Id} is not part of the authored route.")
+        };
+    }
+
+    private static RoutePresentationPhase CurrentRouteStep(int order) => new(order, order);
+
+    private static RoutePresentationPhase BetweenRouteSteps(int completedThroughOrder) => new(completedThroughOrder + 1, null);
+
+    private static int OrderOfFragmentLocation(LocationId locationId)
+    {
+        return locationId switch
+        {
+            LocationId.Ashtonia => AshtoniaFragmentRouteOrder,
+            LocationId.WhisperingWoods => WhisperingWoodsFragmentRouteOrder,
+            LocationId.TheBonePeaks => BonePeaksFragmentRouteOrder,
+            _ => throw new DomainException(
+                ErrorCodes.Conflict,
+                $"Location {locationId} is not part of the authored fragment route.")
+        };
+    }
+
     /// <summary>
     /// Persists the outcome of a travel action: the previous Current location (if
     /// any) goes back to Available, and the destination becomes Current. Never
@@ -325,49 +394,112 @@ public sealed class LocationService : ILocationService
 
     // --- Projection helpers ---
 
-    private static LocationSummaryDto ToSummaryDto(
-        LocationDefinition definition, Dictionary<LocationId, LocationProgress> progressByLocation, LocationId? recommendedNext)
+    private static LocationSummaryDto ToSummaryDto(LocationDefinition definition)
     {
-        progressByLocation.TryGetValue(definition.Id, out var progress);
         return new LocationSummaryDto
         {
-            Id = definition.Id,
+            Id = (int)definition.Id,
+            Slug = ToSlug(definition.Name),
             Name = definition.Name,
-            Description = definition.Description,
-            BackgroundImage = definition.BackgroundImage,
-            Status = progress?.Status ?? LocationStatus.Locked,
             RecommendedMinimumLevel = definition.RecommendedMinimumLevel,
-            RecommendedMaximumLevel = definition.RecommendedMaximumLevel,
-            UnlockRequirements = LocationUnlockRequirementDto.FromDomain(definition.UnlockRequirement),
-            IsCurrent = progress?.Status == LocationStatus.Current,
-            IsRecommendedNext = recommendedNext == definition.Id
+            BackgroundImage = definition.BackgroundImage,
+            IsSafeLocation = definition.IsSafeLocation
         };
     }
 
-    private static LocationDetailsDto ToDetailsDto(
-        LocationDefinition definition, Dictionary<LocationId, LocationProgress> progressByLocation, LocationId? recommendedNext)
+    private static LocationDetailsDto ToDetailsDto(LocationDefinition definition)
     {
-        progressByLocation.TryGetValue(definition.Id, out var progress);
         return new LocationDetailsDto
         {
-            Id = definition.Id,
+            Id = (int)definition.Id,
+            Slug = ToSlug(definition.Name),
             Name = definition.Name,
             Description = definition.Description,
-            BackgroundImage = definition.BackgroundImage,
-            Status = progress?.Status ?? LocationStatus.Locked,
             RecommendedMinimumLevel = definition.RecommendedMinimumLevel,
-            RecommendedMaximumLevel = definition.RecommendedMaximumLevel,
-            IsSafeLocation = definition.IsSafeLocation,
-            UnlockRequirements = LocationUnlockRequirementDto.FromDomain(definition.UnlockRequirement),
-            IsCurrent = progress?.Status == LocationStatus.Current,
-            IsRecommendedNext = recommendedNext == definition.Id,
-            Visited = progress?.Visited ?? false,
-            Completed = progress?.Completed ?? false,
-            UnlockedAtLevel = progress?.UnlockedAtLevel,
-            MainQuestIds = definition.MainQuestIds.ToList(),
-            SideQuestIds = definition.SideQuestIds.ToList(),
-            SpecialFlags = definition.SpecialFlags.ToList()
+            BackgroundImage = definition.BackgroundImage,
+            IsSafeLocation = definition.IsSafeLocation
         };
+    }
+
+    private static LocationStatusDto ToStatusDto(
+        LocationDefinition definition,
+        Dictionary<LocationId, LocationProgress> progressByLocation)
+    {
+        progressByLocation.TryGetValue(definition.Id, out var progress);
+        return new LocationStatusDto
+        {
+            LocationId = (int)definition.Id,
+            LocationName = definition.Name,
+            Status = StatusText(progress),
+            RecommendedLevel = definition.RecommendedMinimumLevel,
+            IsCurrent = progress?.Status == LocationStatus.Current,
+            IsCompleted = progress?.Completed ?? false
+        };
+    }
+
+    private static string StatusText(LocationProgress? progress)
+    {
+        return (progress?.Status ?? LocationStatus.Locked).ToString();
+    }
+
+    private static string RouteStatusText(
+        LocationRouteStep step,
+        RoutePresentationPhase? routePhase,
+        LocationProgress? progress)
+    {
+        if (routePhase is null)
+        {
+            var fallbackStatus = progress?.Status ?? LocationStatus.Locked;
+            return fallbackStatus is LocationStatus.Current or LocationStatus.Completed
+                ? LocationStatus.Available.ToString()
+                : fallbackStatus.ToString();
+        }
+
+        if (routePhase.CurrentOrder == step.Order)
+        {
+            return LocationStatus.Current.ToString();
+        }
+
+        if (step.Order < routePhase.ProgressOrder)
+        {
+            return LocationStatus.Completed.ToString();
+        }
+
+        var status = progress?.Status ?? LocationStatus.Locked;
+        return status is LocationStatus.Current or LocationStatus.Completed
+            ? LocationStatus.Available.ToString()
+            : status.ToString();
+    }
+
+    private static string ToSlug(string name)
+    {
+        var slug = new StringBuilder();
+        var previousWasSeparator = false;
+
+        foreach (var character in name.ToLowerInvariant())
+        {
+            if (char.IsLetterOrDigit(character))
+            {
+                slug.Append(character);
+                previousWasSeparator = false;
+                continue;
+            }
+
+            if ((char.IsWhiteSpace(character) || character is '-' or '_') &&
+                slug.Length > 0 &&
+                !previousWasSeparator)
+            {
+                slug.Append('-');
+                previousWasSeparator = true;
+            }
+        }
+
+        if (slug.Length > 0 && slug[^1] == '-')
+        {
+            slug.Length--;
+        }
+
+        return slug.ToString();
     }
 
     // --- Resource resolution ---
@@ -447,6 +579,16 @@ public sealed class LocationService : ILocationService
         }
     }
 
+    private static LocationId ToLocationId(int locationId)
+    {
+        if (!Enum.IsDefined(typeof(LocationId), locationId))
+        {
+            throw new DomainException(ErrorCodes.ValidationError, $"Location {locationId} does not exist.");
+        }
+
+        return (LocationId)locationId;
+    }
+
     private static void RequirePositiveId(int id, string fieldName)
     {
         var validation = RequestValidationHelpers.RequirePositiveId(id, fieldName);
@@ -455,4 +597,6 @@ public sealed class LocationService : ILocationService
             throw new DomainException(ErrorCodes.ValidationError, string.Join(" ", validation.Errors));
         }
     }
+
+    private sealed record RoutePresentationPhase(int ProgressOrder, int? CurrentOrder);
 }

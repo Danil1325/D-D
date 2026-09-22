@@ -1,8 +1,6 @@
 namespace DnDGame.BusinessLayer.Dtos.Locations;
 
-/// <summary>
-/// Player-specific presentation status for one catalog location.
-/// </summary>
+/// <summary>Player-specific location state displayed by the map UI.</summary>
 public class LocationStatusDto
 {
     public int LocationId { get; init; }

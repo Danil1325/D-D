@@ -290,6 +290,7 @@ public static class DependencyInjection
         services.AddScoped<ILocationProgressionService, LocationProgressionService>();
         services.AddScoped<IProgressionService, ProgressionService>();
         services.AddScoped<ILocationService, LocationService>();
+        services.AddScoped<IExplicitLocationUnlockService, ExplicitLocationUnlockService>();
         return services;
     }
 }

@@ -260,6 +260,20 @@ public class DiRegistrationTests
         AssertResolves(provider, serviceType);
     }
 
+    [Fact]
+    public void ScenarioServices_ExplicitLocationUnlockServiceResolves()
+    {
+        using var provider = Build(services =>
+        {
+            services.AddCardBattleServices();
+            services.AddBattleTurnSystemServices();
+            services.AddMockData();
+            services.AddScenarioServices();
+        });
+
+        AssertResolves(provider, typeof(IExplicitLocationUnlockService));
+    }
+
     /// <summary>
     /// Deterministic stand-in for the real combat rules. Mirrors the test fake used
     /// by CardEffectStrategyTests so the DI tests never depend on Persona 1's
