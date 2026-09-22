@@ -163,6 +163,7 @@ public class QuestServiceTests
         var completion = await service.CompleteQuestAsync(1, firstMainQuestId);
 
         Assert.Equal(100, completion.ExperienceGained);
+        Assert.Empty(completion.NewLocationIds);
         Assert.Equal(100, player.CurrentXp);
 
         var exception = await Assert.ThrowsAsync<DomainException>(
@@ -204,231 +205,58 @@ public class QuestServiceTests
         Assert.True(progress.StoryFlags["side_complete"]);
     }
 
-    // --- Completion: Quest.Outcomes application (BACK-LOC-06) ---
-
     [Fact]
-    public async Task CompleteQuest_AppliesEligibleOutcome_PersistingAllyCodeAsStoryFlag()
-    {
-        // SQ-DK-02 ("The Chimera's Three Hearts"): completing it applies whichever
-        // Outcome's RequiredFlags currently match. Seeding divine_chimera_restored=true
-        // (normally set by an in-story choice, not yet wired to any service — a
-        // separate gap from this one) selects the "restored" outcome, whose
-        // Allies["divine-chimera"] must end up as an ordinary, queryable story flag.
-        var (service, store, _, _, _) = CreateScenario(characterLevel: 9);
-        var questId = QuestId(store, "SQ-DK-02");
-        store.ScenarioProgresses.Add(new ScenarioProgress
-        {
-            Id = 1,
-            GameSessionId = 1,
-            StoryFlags = new Dictionary<string, bool> { ["divine_chimera_restored"] = true }
-        });
-
-        await service.StartQuestAsync(1, questId);
-        await service.CompleteQuestAsync(1, questId);
-
-        var progress = store.ScenarioProgresses.Single(p => p.GameSessionId == 1);
-        Assert.True(progress.StoryFlags["divine-chimera"]);
-    }
-
-    [Fact]
-    public async Task CompleteQuest_WithNoRequiredFlagsSet_SelectsTheOutcomeThatOnlyRequiresFalseFlags()
-    {
-        // The "defeated" outcome requires divine_chimera_restored == false, which a
-        // brand-new session with no ScenarioProgress satisfies by the "missing flag
-        // counts as false" convention — it must be selected by default, granting its
-        // Items rather than the "restored" outcome's Allies.
-        var (service, store, _, _, _) = CreateScenario(characterLevel: 9);
-        var questId = QuestId(store, "SQ-DK-02");
-
-        await service.StartQuestAsync(1, questId);
-        await service.CompleteQuestAsync(1, questId);
-
-        var progress = store.ScenarioProgresses.Single(p => p.GameSessionId == 1);
-        Assert.False(progress.StoryFlags.ContainsKey("divine-chimera"));
-    }
-
-    [Fact]
-    public async Task CompleteQuest_WithNoOutcomesConfigured_CreatesNoScenarioProgressWhenThereAreNoOtherFlags()
+    public async Task CompleteQuest_FirstExplicitLocationUnlock_PersistsAndReturnsIt()
     {
         var (service, store, _, _, _) = CreateScenario();
-        var quest = AddSyntheticQuest(store, 510);
+        var quest = AddSyntheticQuest(store, 510, newLocationIds: new[] { 4 });
 
         await service.StartQuestAsync(1, quest.Id);
-        await service.CompleteQuestAsync(1, quest.Id);
+        var completion = await service.CompleteQuestAsync(1, quest.Id);
 
-        Assert.Empty(store.ScenarioProgresses);
+        Assert.Equal(new[] { 4 }, completion.NewLocationIds);
+        Assert.Contains(4, Assert.Single(store.ScenarioProgresses).UnlockedLocationIds);
     }
 
-    // --- Completion: location unlocks (BACK-LOC-07) ---
-
     [Fact]
-    public async Task CompleteQuest_MQ01_ForHuman_CompletesHerosOverlookAndUnlocksMisthavenPortDirectly()
+    public async Task CompleteQuest_DuplicateLocationUnlocks_ReturnsLocationOnce()
     {
-        // Human's racial route goes straight Hero's Overlook -> Misthaven Port
-        // (LocationRouteRegistry), so for this race MQ-01 alone is enough.
         var (service, store, _, _, _) = CreateScenario();
-        var mq01 = QuestId(store, "MQ-01");
+        var quest = AddSyntheticQuest(store, 511, newLocationIds: new[] { 4, 4 });
 
-        await service.StartQuestAsync(1, mq01);
-        var result = await service.CompleteQuestAsync(1, mq01);
+        await service.StartQuestAsync(1, quest.Id);
+        var completion = await service.CompleteQuestAsync(1, quest.Id);
 
-        Assert.Contains(LocationId.MisthavenPort, result.NewLocationIds);
-        Assert.DoesNotContain(LocationId.Oakheaven, result.NewLocationIds);
-
-        var progress = store.LocationProgresses.Where(p => p.PlayerId == 1).ToList();
-        Assert.Contains(progress, p => p.LocationId == LocationId.HerosOverlook && p.Completed);
-        Assert.Contains(progress, p => p.LocationId == LocationId.MisthavenPort && p.Status != LocationStatus.Locked);
+        Assert.Equal(new[] { 4 }, completion.NewLocationIds);
     }
 
     [Fact]
-    public async Task CompleteQuest_ForElf_MQ01ThenMQ02_OpensWhisperingWoodsThenMisthavenPort()
+    public async Task CompleteQuest_AlreadyUnlockedLocation_IsNotReturnedAgain()
     {
-        // Non-Human races have a distinct first stop before Misthaven Port opens.
-        var (service, store, player, _, _) = CreateScenario();
-        player.RaceId = 2; // Elf
-        var mq01 = QuestId(store, "MQ-01");
-        var mq02 = QuestId(store, "MQ-02");
+        var (service, store, _, _, _) = CreateScenario();
+        var quest = AddSyntheticQuest(store, 512, newLocationIds: new[] { 4 });
+        store.ScenarioProgresses.Add(new ScenarioProgress { GameSessionId = 1, UnlockedLocationIds = new HashSet<int> { 4 } });
 
-        await service.StartQuestAsync(1, mq01);
-        var afterPrologue = await service.CompleteQuestAsync(1, mq01);
-        Assert.Contains(LocationId.WhisperingWoods, afterPrologue.NewLocationIds);
-        Assert.DoesNotContain(LocationId.MisthavenPort, afterPrologue.NewLocationIds);
+        await service.StartQuestAsync(1, quest.Id);
+        var completion = await service.CompleteQuestAsync(1, quest.Id);
 
-        player.Level = 1; // Keep MQ-02 (level 1-2) reachable regardless of MQ-01's XP.
-        await service.StartQuestAsync(1, mq02);
-        var afterRacialRoute = await service.CompleteQuestAsync(1, mq02);
-
-        Assert.Contains(LocationId.MisthavenPort, afterRacialRoute.NewLocationIds);
+        Assert.Empty(completion.NewLocationIds);
+        Assert.Contains(4, Assert.Single(store.ScenarioProgresses).UnlockedLocationIds);
     }
 
     [Fact]
-    public async Task CompleteQuest_MQ03_UnlocksOakheaven()
+    public async Task CompleteQuest_MixedOldAndNewLocationUnlocks_ReturnsOnlyNewLocations()
     {
-        var (service, store, player, _, _) = CreateScenario();
-        SeedCompletedQuest(store, 1);
-        SeedCompletedQuest(store, 2);
-        player.Level = 2; // MQ-03's range is 2-2.
-        var mq03 = QuestId(store, "MQ-03");
+        var (service, store, _, _, _) = CreateScenario();
+        var quest = AddSyntheticQuest(store, 513, newLocationIds: new[] { 4, 7 });
+        store.ScenarioProgresses.Add(new ScenarioProgress { GameSessionId = 1, UnlockedLocationIds = new HashSet<int> { 4 } });
 
-        await service.StartQuestAsync(1, mq03);
-        var result = await service.CompleteQuestAsync(1, mq03);
+        await service.StartQuestAsync(1, quest.Id);
+        var completion = await service.CompleteQuestAsync(1, quest.Id);
 
-        Assert.Contains(LocationId.Oakheaven, result.NewLocationIds);
-    }
-
-    [Fact]
-    public async Task CompleteQuest_MQ06_OpensTheFlexibleFragmentLocations()
-    {
-        // Without MQ-06's flexible-route bypass, WhisperingWoods/Ashtonia/TheBonePeaks
-        // (next in the normal route order after Oakheaven) would stay unreachable
-        // through the generic "previous location complete" fallback alone.
-        var (service, store, player, _, _) = CreateScenario();
-        foreach (var id in new[] { 1, 2, 3, 4, 5 })
-        {
-            SeedCompletedQuest(store, id);
-        }
-        player.Level = 5; // MQ-06's range is 4-5.
-        var mq06 = QuestId(store, "MQ-06");
-
-        await service.StartQuestAsync(1, mq06);
-        var result = await service.CompleteQuestAsync(1, mq06);
-
-        Assert.Contains(LocationId.WhisperingWoods, result.NewLocationIds);
-        Assert.Contains(LocationId.Ashtonia, result.NewLocationIds);
-        Assert.Contains(LocationId.TheBonePeaks, result.NewLocationIds);
-    }
-
-    [Fact]
-    public async Task CompleteQuest_MQ06_MarksOakheavenLocationProgressCompleted()
-    {
-        // MQ-06 ("The Unburned Town") is Oakheaven's own resolution quest; its
-        // completion should mark LocationProgress.Completed for Oakheaven even
-        // though nothing downstream depends on that flag for unlocking anything else
-        // (the flexible fragment locations unlock via the same quest, independently).
-        var (service, store, player, _, _) = CreateScenario();
-        foreach (var id in new[] { 1, 2, 3, 4, 5 })
-        {
-            SeedCompletedQuest(store, id);
-        }
-        player.Level = 5;
-        var mq06 = QuestId(store, "MQ-06");
-
-        await service.StartQuestAsync(1, mq06);
-        await service.CompleteQuestAsync(1, mq06);
-
-        var oakheavenProgress = store.LocationProgresses.Single(p => p.PlayerId == 1 && p.LocationId == LocationId.Oakheaven);
-        Assert.True(oakheavenProgress.Completed);
-    }
-
-    [Fact]
-    public async Task CompleteQuest_MQ10_UnlocksDarkstormKeep()
-    {
-        // MQ-10's own prerequisite chain requires MQ-07/08/09 (the three Crown
-        // Fragment quests) already completed, so the "three fragments" condition is
-        // always satisfied by the time MQ-10 is reachable at all.
-        var (service, store, player, _, _) = CreateScenario();
-        foreach (var id in new[] { 1, 2, 3, 4, 5, 6, 7, 8, 9 })
-        {
-            SeedCompletedQuest(store, id);
-        }
-        player.Level = 8;
-        var mq10 = QuestId(store, "MQ-10");
-
-        await service.StartQuestAsync(1, mq10);
-        var result = await service.CompleteQuestAsync(1, mq10);
-
-        Assert.Contains(LocationId.DarkstormKeep, result.NewLocationIds);
-    }
-
-    [Fact]
-    public async Task CompleteQuest_MQ13_UnlocksHerosOverlookFinale_AndSetsFinaleUnlockedFlag()
-    {
-        var (service, store, player, _, _) = CreateScenario();
-        foreach (var id in new[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12 })
-        {
-            SeedCompletedQuest(store, id);
-        }
-        player.Level = 9;
-        var mq13 = QuestId(store, "MQ-13");
-
-        await service.StartQuestAsync(1, mq13);
-        var result = await service.CompleteQuestAsync(1, mq13);
-
-        Assert.Contains(LocationId.HerosOverlook, result.NewLocationIds);
-        var progress = store.ScenarioProgresses.Single(p => p.GameSessionId == 1);
-        Assert.True(progress.StoryFlags["FinaleUnlocked"]);
-    }
-
-    [Fact]
-    public async Task CompleteQuest_SameLocationIsNeverReportedAsNewTwice()
-    {
-        var (service, store, player, _, _) = CreateScenario();
-        var mq01 = QuestId(store, "MQ-01");
-        await service.StartQuestAsync(1, mq01);
-        var first = await service.CompleteQuestAsync(1, mq01);
-        Assert.Contains(LocationId.MisthavenPort, first.NewLocationIds);
-
-        // Nothing else unlocks between MQ-01 and MQ-02, so re-evaluating on MQ-02's
-        // completion must not report Misthaven Port (or Hero's Overlook) again.
-        player.Level = 1;
-        var mq02 = QuestId(store, "MQ-02");
-        await service.StartQuestAsync(1, mq02);
-        var second = await service.CompleteQuestAsync(1, mq02);
-
-        Assert.DoesNotContain(LocationId.MisthavenPort, second.NewLocationIds);
-        Assert.DoesNotContain(LocationId.HerosOverlook, second.NewLocationIds);
-    }
-
-    private static void SeedCompletedQuest(InMemoryGameDataStore store, int questId, int gameSessionId = 1)
-    {
-        store.PlayerQuests.Add(new PlayerQuest
-        {
-            GameSessionId = gameSessionId,
-            QuestId = questId,
-            Status = QuestStatus.Completed,
-            StartedAt = DateTime.UtcNow,
-            CompletedAt = DateTime.UtcNow
-        });
+        Assert.Equal(new[] { 7 }, completion.NewLocationIds);
+        Assert.Contains(4, Assert.Single(store.ScenarioProgresses).UnlockedLocationIds);
+        Assert.Contains(7, Assert.Single(store.ScenarioProgresses).UnlockedLocationIds);
     }
 
     // --- Objectives ---
@@ -445,9 +273,45 @@ public class QuestServiceTests
         Assert.True(result.ObjectiveCompleted);
         Assert.Equal(1, result.NextObjectiveIndex);
         Assert.Null(result.Completed);
+        Assert.Empty(result.NewLocationIds);
 
         var active = await service.GetActiveQuestsAsync(1);
         Assert.Equal(102, Assert.Single(active).CurrentObjectiveId);
+    }
+
+    [Fact]
+    public async Task UpdateObjective_ObjectiveRewardLocationUnlock_PersistsAndReturnsIt()
+    {
+        var (service, store, _, _, _) = CreateScenario();
+        var quest = AddSyntheticQuest(store, 514);
+        AddObjective(
+            quest,
+            objectiveId: 51401,
+            newLocationIds: new[] { 4, 4 });
+        AddObjective(quest, objectiveId: 51402);
+
+        await service.StartQuestAsync(1, quest.Id);
+        var result = await service.UpdateObjectiveAsync(1, quest.Id, 51401);
+
+        Assert.Equal(new[] { 4 }, result.NewLocationIds);
+        Assert.Contains(4, Assert.Single(store.ScenarioProgresses).UnlockedLocationIds);
+        Assert.Null(result.Completed);
+    }
+
+    [Fact]
+    public async Task UpdateObjective_ObjectiveRewardAlreadyUnlockedLocation_IsNotReturnedAgain()
+    {
+        var (service, store, _, _, _) = CreateScenario();
+        var quest = AddSyntheticQuest(store, 515);
+        AddObjective(quest, objectiveId: 51501, newLocationIds: new[] { 4 });
+        AddObjective(quest, objectiveId: 51502);
+        store.ScenarioProgresses.Add(new ScenarioProgress { GameSessionId = 1, UnlockedLocationIds = new HashSet<int> { 4 } });
+
+        await service.StartQuestAsync(1, quest.Id);
+        var result = await service.UpdateObjectiveAsync(1, quest.Id, 51501);
+
+        Assert.Empty(result.NewLocationIds);
+        Assert.Contains(4, Assert.Single(store.ScenarioProgresses).UnlockedLocationIds);
     }
 
     [Fact]
@@ -683,7 +547,8 @@ public class QuestServiceTests
         int? locationId = null,
         int experience = 0,
         Dictionary<string, bool>? requiredFlags = null,
-        Dictionary<string, bool>? resultFlags = null)
+        Dictionary<string, bool>? resultFlags = null,
+        IReadOnlyCollection<int>? newLocationIds = null)
     {
         var quest = new Quest
         {
@@ -696,13 +561,41 @@ public class QuestServiceTests
             RecommendedLevel = recommendedLevel,
             RecommendedMaximumLevel = recommendedMaximumLevel,
             LocationId = locationId,
-            Rewards = new List<QuestReward> { new() { Experience = experience } },
+            Rewards = new List<QuestReward>
+            {
+                new()
+                {
+                    Experience = experience,
+                    NewLocationIds = newLocationIds?.ToList() ?? new List<int>()
+                }
+            },
             RequiredFlags = requiredFlags ?? new(),
             ResultFlags = resultFlags ?? new(),
             Objectives = new List<QuestObjective>()
         };
         store.Quests.Add(quest);
         return quest;
+    }
+
+    private static void AddObjective(
+        Quest quest,
+        int objectiveId,
+        IReadOnlyCollection<int>? newLocationIds = null)
+    {
+        quest.Objectives.Add(new QuestObjective
+        {
+            Id = objectiveId,
+            Description = "Synthetic objective",
+            ObjectiveType = ObjectiveType.MakeChoice,
+            RequiredAmount = 1,
+            Rewards = new List<QuestReward>
+            {
+                new()
+                {
+                    NewLocationIds = newLocationIds?.ToList() ?? new List<int>()
+                }
+            }
+        });
     }
 
     private sealed class FixedCurrentPlayerService : ICurrentPlayerService

@@ -120,6 +120,7 @@ public class ScenarioService : IScenarioService
             progress.CompanionLoyalty.Clear();
             progress.QuestProgress.Clear();
             progress.StoryFlags.Clear();
+            progress.UnlockedLocationIds.Clear();
         }
 
         var scenes = await _sceneRepository.GetAllAsync();
@@ -169,6 +170,7 @@ public class ScenarioService : IScenarioService
         }
 
         var state = RequireEngineOk(_engine.ResumeScenario(progress, Array.Empty<int>(), Array.Empty<int>()));
+        var previouslyUnlockedLocationIds = progress.UnlockedLocationIds.ToHashSet();
         RequireEngineOk(_engine.SelectChoice(
             state,
             scene,
@@ -179,7 +181,10 @@ public class ScenarioService : IScenarioService
             playerQuests));
 
         await PersistRunAsync(progress, character, playerQuests, progressWasCreated: false);
-        return ScenarioProgressDto.FromDomain(progress);
+        var newLocationIds = progress.UnlockedLocationIds
+            .Except(previouslyUnlockedLocationIds)
+            .ToList();
+        return ScenarioProgressDto.FromDomain(progress, newLocationIds);
     }
 
     public async Task<IReadOnlyList<LocationDto>> GetLocationsAsync()

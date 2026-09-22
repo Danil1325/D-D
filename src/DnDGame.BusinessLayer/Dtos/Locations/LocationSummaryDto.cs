@@ -1,23 +1,26 @@
-using DnDGame.Domain.Entities.Locations;
+using DnDGame.Domain.Entities.Game;
 
 namespace DnDGame.BusinessLayer.Dtos.Locations;
 
 /// <summary>
-/// One catalogue entry as shown on the location-selection screen, projected for a
-/// specific player. Deliberately excludes encounter data — GET /api/locations/
-/// {locationId}/enemies is the only endpoint allowed to reveal available encounters,
-/// and only for the requesting player.
+/// Stable catalog data for the locations list.
 /// </summary>
 public class LocationSummaryDto
 {
-    public LocationId Id { get; init; }
+    public int Id { get; init; }
+    public string Slug { get; init; } = string.Empty;
     public string Name { get; init; } = string.Empty;
-    public string Description { get; init; } = string.Empty;
-    public string BackgroundImage { get; init; } = string.Empty;
-    public LocationStatus Status { get; init; }
     public int RecommendedMinimumLevel { get; init; }
-    public int RecommendedMaximumLevel { get; init; }
-    public LocationUnlockRequirementDto UnlockRequirements { get; init; } = new();
-    public bool IsCurrent { get; init; }
-    public bool IsRecommendedNext { get; init; }
+    public string BackgroundImage { get; init; } = string.Empty;
+    public bool IsSafeLocation { get; init; }
+
+    public static LocationSummaryDto FromDomain(Location location) => new()
+    {
+        Id = location.Id,
+        Slug = location.Slug,
+        Name = location.Name,
+        RecommendedMinimumLevel = location.RecommendedMinimumLevel,
+        BackgroundImage = location.BackgroundImage,
+        IsSafeLocation = location.IsSafeLocation
+    };
 }

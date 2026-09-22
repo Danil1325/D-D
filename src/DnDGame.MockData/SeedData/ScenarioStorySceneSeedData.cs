@@ -105,10 +105,10 @@ internal partial class ScenarioStorySceneSeedData
         var s1205 = Scene(1205, 1, 2, "The Road That Is Yours", 4);
         Say(s1205, 71);
         Say(s1205, 72);
-        Choice(s1205, 74, 1201);
-        Choice(s1205, 85, 1202);
-        Choice(s1205, 96, 1203);
-        Choice(s1205, 107, 1204);
+        Choice(s1205, 74, 1201, raceId: 2, newLocationId: 7);
+        Choice(s1205, 85, 1202, raceId: 3, newLocationId: 1);
+        Choice(s1205, 96, 1203, raceId: 1, newLocationId: 4);
+        Choice(s1205, 107, 1204, raceId: 4, newLocationId: 6);
 
         var s1201 = Scene(1201, 1, 2, "The Wood That Remembers", 7);
         Say(s1201, 75);
@@ -125,7 +125,7 @@ internal partial class ScenarioStorySceneSeedData
 
         var s1212 = Scene(1212, 1, 2, "The Wood That Remembers", 7);
         Narrate(s1212, 84);
-        ContinueTo(s1212, 2003);
+        ContinueTo(s1212, 2003, newLocationId: 4);
 
         var s1202 = Scene(1202, 1, 2, "Ash Beneath Ashtonia", 1);
         Say(s1202, 86);
@@ -142,7 +142,7 @@ internal partial class ScenarioStorySceneSeedData
 
         var s1222 = Scene(1222, 1, 2, "Ash Beneath Ashtonia", 1);
         Narrate(s1222, 95);
-        ContinueTo(s1222, 2003);
+        ContinueTo(s1222, 2003, newLocationId: 4);
 
         var s1203 = Scene(1203, 1, 2, "The Lighthouse Guild", 4);
         Say(s1203, 97);
@@ -176,7 +176,7 @@ internal partial class ScenarioStorySceneSeedData
 
         var s1242 = Scene(1242, 1, 2, "The Silence of Karag-Dur", 6);
         Narrate(s1242, 117);
-        ContinueTo(s1242, 2003);
+        ContinueTo(s1242, 2003, newLocationId: 4);
     }
 
     private void SeedAct2()
@@ -227,9 +227,9 @@ internal partial class ScenarioStorySceneSeedData
         ContinueTo(s2005, 2015);
 
         var s2015 = Scene(2015, 2, 5, "The Missing Reports", 4);
-        Choice(s2015, 151, 3006);
-        Choice(s2015, 152, 3006);
-        Choice(s2015, 153, 3006);
+        Choice(s2015, 151, 3006, newLocationId: 5);
+        Choice(s2015, 152, 3006, newLocationId: 5);
+        Choice(s2015, 153, 3006, newLocationId: 5);
     }
 
     private void SeedAct3()
@@ -306,7 +306,7 @@ internal partial class ScenarioStorySceneSeedData
     {
         var s4100 = Scene(4100, 4, 0, "Act IV - The Gathering", 4);
         Say(s4100, 195);
-        ContinueTo(s4100, 4008);
+        ContinueTo(s4100, 4008, newLocationId: 1);
 
         var s4008 = Scene(4008, 4, 8, "Ashtonia's Sealed Chamber", 1);
         Say(s4008, 197);
@@ -324,7 +324,7 @@ internal partial class ScenarioStorySceneSeedData
 
         var s4028 = Scene(4028, 4, 8, "Ashtonia's Sealed Chamber", 1);
         Narrate(s4028, 207);
-        ContinueTo(s4028, 4009);
+        ContinueTo(s4028, 4009, newLocationId: 7);
 
         var s4009 = Scene(4009, 4, 9, "The Heart-Tree's Fifth Shadow", 7);
         Say(s4009, 209);
@@ -342,7 +342,7 @@ internal partial class ScenarioStorySceneSeedData
 
         var s4029 = Scene(4029, 4, 9, "The Heart-Tree's Fifth Shadow", 7);
         Narrate(s4029, 219);
-        ContinueTo(s4029, 4010);
+        ContinueTo(s4029, 4010, newLocationId: 6);
 
         var s4010 = Scene(4010, 4, 10, "Karag-Dur, Where Nothing Lives", 6);
         Say(s4010, 221);
@@ -390,15 +390,15 @@ internal partial class ScenarioStorySceneSeedData
 
         var s4114 = Scene(4114, 4, 11, "The Traitor's Errand", 1);
         Say(s4114, 239);
-        ContinueTo(s4114, 5101);
+        ContinueTo(s4114, 5101, newLocationId: 2);
 
         var s4115 = Scene(4115, 4, 11, "The Traitor's Errand", 7);
         Say(s4115, 239);
-        ContinueTo(s4115, 5101);
+        ContinueTo(s4115, 5101, newLocationId: 2);
 
         var s4116 = Scene(4116, 4, 11, "The Traitor's Errand", 6);
         Say(s4116, 239);
-        ContinueTo(s4116, 5101);
+        ContinueTo(s4116, 5101, newLocationId: 2);
     }
 
     private void SeedAct5()
@@ -655,16 +655,24 @@ Choice(s6017, 366, 6101);
         });
     }
 
-    private void Choice(StoryScene scene, int textParaIndex, int nextSceneId)
+    private void Choice(StoryScene scene, int textParaIndex, int nextSceneId, int? raceId = null, int? newLocationId = null)
     {
         // Every authored choice keeps its bracketed guidance verbatim in the visible text;
-        // Requirements/Consequences are intentionally left to the game engine.
-        scene.Choices.Add(new StoryChoice
+        // requirements stay data-only so the game engine remains the source of enforcement.
+        var choice = new StoryChoice
         {
             Id = _choiceId++,
             Text = P[textParaIndex],
             NextSceneId = nextSceneId
-        });
+        };
+
+        if (raceId.HasValue)
+        {
+            choice.Requirements.Add(new ChoiceRequirement { RaceId = raceId.Value });
+        }
+
+        AddLocationUnlock(choice, newLocationId);
+        scene.Choices.Add(choice);
     }
 
     /// <summary>
@@ -672,13 +680,29 @@ Choice(s6017, 366, 6101);
     /// non-final scene has an unambiguous connected flow. This is a UI affordance
     /// only; it is not authored scenario text.
     /// </summary>
-    private void ContinueTo(StoryScene scene, int nextSceneId)
+    private void ContinueTo(StoryScene scene, int nextSceneId, int? newLocationId = null)
     {
-        scene.Choices.Add(new StoryChoice
+        var choice = new StoryChoice
         {
             Id = _choiceId++,
             Text = "Continue",
             NextSceneId = nextSceneId
+        };
+
+        AddLocationUnlock(choice, newLocationId);
+        scene.Choices.Add(choice);
+    }
+
+    private static void AddLocationUnlock(StoryChoice choice, int? newLocationId)
+    {
+        if (!newLocationId.HasValue)
+        {
+            return;
+        }
+
+        choice.Consequences.Add(new ChoiceConsequence
+        {
+            NewLocationIds = new List<int> { newLocationId.Value }
         });
     }
 

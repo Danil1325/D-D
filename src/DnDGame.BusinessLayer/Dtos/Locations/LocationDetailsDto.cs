@@ -1,25 +1,28 @@
-using DnDGame.Domain.Entities.Locations;
+using DnDGame.Domain.Entities.Game;
 
 namespace DnDGame.BusinessLayer.Dtos.Locations;
 
-/// <summary>Full detail view of one location, projected for a specific player.</summary>
+/// <summary>
+/// Read-only catalog details for one world-map location.
+/// </summary>
 public class LocationDetailsDto
 {
-    public LocationId Id { get; init; }
+    public int Id { get; init; }
+    public string Slug { get; init; } = string.Empty;
     public string Name { get; init; } = string.Empty;
     public string Description { get; init; } = string.Empty;
-    public string BackgroundImage { get; init; } = string.Empty;
-    public LocationStatus Status { get; init; }
     public int RecommendedMinimumLevel { get; init; }
-    public int RecommendedMaximumLevel { get; init; }
+    public string BackgroundImage { get; init; } = string.Empty;
     public bool IsSafeLocation { get; init; }
-    public LocationUnlockRequirementDto UnlockRequirements { get; init; } = new();
-    public bool IsCurrent { get; init; }
-    public bool IsRecommendedNext { get; init; }
-    public bool Visited { get; init; }
-    public bool Completed { get; init; }
-    public int? UnlockedAtLevel { get; init; }
-    public IReadOnlyCollection<int> MainQuestIds { get; init; } = Array.Empty<int>();
-    public IReadOnlyCollection<int> SideQuestIds { get; init; } = Array.Empty<int>();
-    public IReadOnlyCollection<string> SpecialFlags { get; init; } = Array.Empty<string>();
+
+    public static LocationDetailsDto FromDomain(Location location) => new()
+    {
+        Id = location.Id,
+        Slug = location.Slug,
+        Name = location.Name,
+        Description = location.Description,
+        RecommendedMinimumLevel = location.RecommendedMinimumLevel,
+        BackgroundImage = location.BackgroundImage,
+        IsSafeLocation = location.IsSafeLocation
+    };
 }

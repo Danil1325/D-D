@@ -287,6 +287,7 @@ public static class DependencyInjection
 
         services.AddScoped<IQuestService, QuestService>();
         services.AddScoped<IScenarioService, ScenarioService>();
+        services.AddScoped<ILocationProgressionService, LocationProgressionService>();
         services.AddScoped<IProgressionService, ProgressionService>();
         services.AddScoped<ILocationService, LocationService>();
         return services;
