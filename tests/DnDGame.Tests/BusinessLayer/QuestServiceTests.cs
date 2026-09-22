@@ -158,6 +158,8 @@ public class QuestServiceTests
     {
         var (service, store, player, _, _) = CreateScenario();
         var firstMainQuestId = QuestId(store, "MQ-01");
+        SeedAvailableLocation(store, LocationId.HerosOverlook);
+        SeedAvailableLocation(store, LocationId.MisthavenPort);
         await service.StartQuestAsync(1, firstMainQuestId);
 
         var completion = await service.CompleteQuestAsync(1, firstMainQuestId);
@@ -210,12 +212,16 @@ public class QuestServiceTests
     {
         var (service, store, _, _, _) = CreateScenario();
         var quest = AddSyntheticQuest(store, 510, newLocationIds: new[] { 4 });
+        SeedAvailableLocation(store, LocationId.HerosOverlook);
 
         await service.StartQuestAsync(1, quest.Id);
         var completion = await service.CompleteQuestAsync(1, quest.Id);
 
-        Assert.Equal(new[] { 4 }, completion.NewLocationIds);
-        Assert.Contains(4, Assert.Single(store.ScenarioProgresses).UnlockedLocationIds);
+        Assert.Equal(new[] { LocationId.MisthavenPort }, completion.NewLocationIds);
+        var progress = Assert.Single(store.LocationProgresses, progress =>
+            progress.PlayerId == CurrentPlayerId &&
+            progress.LocationId == LocationId.MisthavenPort);
+        Assert.Equal(LocationStatus.Available, progress.Status);
     }
 
     [Fact]
@@ -223,11 +229,15 @@ public class QuestServiceTests
     {
         var (service, store, _, _, _) = CreateScenario();
         var quest = AddSyntheticQuest(store, 511, newLocationIds: new[] { 4, 4 });
+        SeedAvailableLocation(store, LocationId.HerosOverlook);
 
         await service.StartQuestAsync(1, quest.Id);
         var completion = await service.CompleteQuestAsync(1, quest.Id);
 
-        Assert.Equal(new[] { 4 }, completion.NewLocationIds);
+        Assert.Equal(new[] { LocationId.MisthavenPort }, completion.NewLocationIds);
+        Assert.Single(store.LocationProgresses, progress =>
+            progress.PlayerId == CurrentPlayerId &&
+            progress.LocationId == LocationId.MisthavenPort);
     }
 
     [Fact]
@@ -235,13 +245,16 @@ public class QuestServiceTests
     {
         var (service, store, _, _, _) = CreateScenario();
         var quest = AddSyntheticQuest(store, 512, newLocationIds: new[] { 4 });
-        store.ScenarioProgresses.Add(new ScenarioProgress { GameSessionId = 1, UnlockedLocationIds = new HashSet<int> { 4 } });
+        SeedAvailableLocation(store, LocationId.HerosOverlook);
+        SeedAvailableLocation(store, LocationId.MisthavenPort);
 
         await service.StartQuestAsync(1, quest.Id);
         var completion = await service.CompleteQuestAsync(1, quest.Id);
 
         Assert.Empty(completion.NewLocationIds);
-        Assert.Contains(4, Assert.Single(store.ScenarioProgresses).UnlockedLocationIds);
+        Assert.Single(store.LocationProgresses, progress =>
+            progress.PlayerId == CurrentPlayerId &&
+            progress.LocationId == LocationId.MisthavenPort);
     }
 
     [Fact]
@@ -249,14 +262,15 @@ public class QuestServiceTests
     {
         var (service, store, _, _, _) = CreateScenario();
         var quest = AddSyntheticQuest(store, 513, newLocationIds: new[] { 4, 7 });
-        store.ScenarioProgresses.Add(new ScenarioProgress { GameSessionId = 1, UnlockedLocationIds = new HashSet<int> { 4 } });
+        SeedAvailableLocation(store, LocationId.HerosOverlook);
+        SeedAvailableLocation(store, LocationId.MisthavenPort);
 
         await service.StartQuestAsync(1, quest.Id);
         var completion = await service.CompleteQuestAsync(1, quest.Id);
 
-        Assert.Equal(new[] { 7 }, completion.NewLocationIds);
-        Assert.Contains(4, Assert.Single(store.ScenarioProgresses).UnlockedLocationIds);
-        Assert.Contains(7, Assert.Single(store.ScenarioProgresses).UnlockedLocationIds);
+        Assert.Equal(new[] { LocationId.WhisperingWoods }, completion.NewLocationIds);
+        Assert.Contains(LocationId.MisthavenPort, store.LocationProgresses.Select(progress => progress.LocationId));
+        Assert.Contains(LocationId.WhisperingWoods, store.LocationProgresses.Select(progress => progress.LocationId));
     }
 
     // --- Objectives ---
@@ -292,6 +306,14 @@ public class QuestServiceTests
 
         await service.StartQuestAsync(1, quest.Id);
         var result = await service.UpdateObjectiveAsync(1, quest.Id, 51401);
+
+        Assert.Equal(new[] { 4 }, result.NewLocationIds);
+        var progress = Assert.Single(store.LocationProgresses, progress =>
+            progress.PlayerId == CurrentPlayerId &&
+            progress.LocationId == LocationId.MisthavenPort);
+        Assert.Equal(LocationStatus.Available, progress.Status);
+        Assert.Null(result.Completed);
+    }
 
     [Fact]
     public async Task CompleteQuest_WithExplicitLocationReward_ReturnsAndPersistsNewLocationId()
@@ -384,13 +406,15 @@ public class QuestServiceTests
         var quest = AddSyntheticQuest(store, 515);
         AddObjective(quest, objectiveId: 51501, newLocationIds: new[] { 4 });
         AddObjective(quest, objectiveId: 51502);
-        store.ScenarioProgresses.Add(new ScenarioProgress { GameSessionId = 1, UnlockedLocationIds = new HashSet<int> { 4 } });
+        SeedAvailableLocation(store, LocationId.MisthavenPort);
 
         await service.StartQuestAsync(1, quest.Id);
         var result = await service.UpdateObjectiveAsync(1, quest.Id, 51501);
 
         Assert.Empty(result.NewLocationIds);
-        Assert.Contains(4, Assert.Single(store.ScenarioProgresses).UnlockedLocationIds);
+        Assert.Single(store.LocationProgresses, progress =>
+            progress.PlayerId == CurrentPlayerId &&
+            progress.LocationId == LocationId.MisthavenPort);
     }
 
     [Fact]

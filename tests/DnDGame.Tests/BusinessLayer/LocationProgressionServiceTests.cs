@@ -80,7 +80,7 @@ public class LocationProgressionServiceTests
 
         var enemies = await service.GetLocationEnemiesAsync(DarkstormKeepLocationId, PlayerId);
 
-        AssertEnemyIds(enemies, 1, 2, 3, 16, 17, 18, 19, 20, 21);
+        AssertEnemyIds(enemies, 1, 2, 3, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 27);
     }
 
     [Fact]
@@ -90,7 +90,7 @@ public class LocationProgressionServiceTests
 
         var enemies = await service.GetLocationEnemiesAsync(TheBonePeaksLocationId, PlayerId);
 
-        AssertEnemyIds(enemies, 1, 2, 3, 10, 11, 12, 13, 14, 15);
+        AssertEnemyIds(enemies, 1, 2, 3, 10, 11, 12, 13, 14, 15, 25, 26);
     }
 
     [Fact]
@@ -100,7 +100,7 @@ public class LocationProgressionServiceTests
 
         var enemies = await service.GetLocationEnemiesAsync(WhisperingWoodsLocationId, PlayerId);
 
-        AssertEnemyIds(enemies, 4, 5, 6, 7, 8, 9, 19, 20, 21);
+        AssertEnemyIds(enemies, 4, 5, 6, 7, 8, 9, 19, 20, 21, 22, 28);
     }
 
     [Fact]
@@ -166,7 +166,7 @@ public class LocationProgressionServiceTests
 
         var enemies = await service.GetLocationEnemiesAsync(DarkstormKeepLocationId, PlayerId);
 
-        AssertEnemyIds(enemies, 1, 2, 3, 16, 17, 18, 19, 20, 21);
+        AssertEnemyIds(enemies, 1, 2, 3, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 27);
         Assert.Equal(enemies.Count, enemies.Select(enemy => enemy.Id).Distinct().Count());
     }
 
@@ -613,7 +613,10 @@ public class LocationProgressionServiceTests
             storySceneRepository,
             new MockQuestRepository(store),
             new MockPlayerQuestRepository(store),
-            locationRepository);
+            locationRepository,
+            new ExplicitLocationUnlockService(
+                new MockLocationDefinitionRepository(store),
+                new MockLocationProgressRepository(store)));
 
         return new LocationProgressionService(
             locationRepository,

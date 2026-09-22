@@ -1,3 +1,5 @@
+using DnDGame.Domain.Entities.Game;
+
 namespace DnDGame.BusinessLayer.Dtos.Locations;
 
 /// <summary>One catalogue entry as shown on the location-selection screen.</summary>
@@ -9,4 +11,14 @@ public class LocationSummaryDto
     public int RecommendedMinimumLevel { get; init; }
     public string BackgroundImage { get; init; } = string.Empty;
     public bool IsSafeLocation { get; init; }
+
+    public static LocationSummaryDto FromDomain(Location location) => new()
+    {
+        Id = location.Id,
+        Slug = location.Slug,
+        Name = location.Name,
+        RecommendedMinimumLevel = location.RecommendedMinimumLevel,
+        BackgroundImage = location.BackgroundImage,
+        IsSafeLocation = location.IsSafeLocation
+    };
 }

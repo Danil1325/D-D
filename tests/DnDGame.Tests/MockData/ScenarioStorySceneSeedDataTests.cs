@@ -378,6 +378,19 @@ public class ScenarioStorySceneSeedDataTests
         Assert.Contains(choiceTargets, target => target == 6101);
     }
 
+    private static void AssertChoiceUnlocks(
+        InMemoryGameDataStore store,
+        int sceneId,
+        int choiceId,
+        params int[] expectedLocationIds)
+    {
+        var scene = Assert.Single(store.StoryScenes, scene => scene.Id == sceneId);
+        var choice = Assert.Single(scene.Choices, choice => choice.Id == choiceId);
+        var actualLocationIds = NewLocationIds(choice);
+
+        Assert.Equal(expectedLocationIds, actualLocationIds);
+    }
+
     private static IReadOnlyList<int> NewLocationIds(StoryChoice choice)
     {
         return choice.Consequences

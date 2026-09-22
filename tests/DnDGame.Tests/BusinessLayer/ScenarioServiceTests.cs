@@ -218,7 +218,13 @@ public class ScenarioServiceTests
         var scenario = CreateScenario();
         var choice = AddEntryChoiceLocationUnlocks(scenario.Store, 4);
         await scenario.Service.StartAsync(PlayerId);
-        scenario.Store.ScenarioProgresses.Single().UnlockedLocationIds.Add(4);
+        scenario.Store.LocationProgresses.Add(new LocationProgress
+        {
+            PlayerId = PlayerId,
+            LocationId = LocationId.MisthavenPort,
+            Status = LocationStatus.Available,
+            UnlockedAtLevel = 1
+        });
 
         var result = await scenario.Service.SelectChoiceAsync(new SelectChoiceRequest
         {
@@ -228,7 +234,9 @@ public class ScenarioServiceTests
         });
 
         Assert.Empty(result.NewLocationIds);
-        Assert.Contains(4, scenario.Store.ScenarioProgresses.Single().UnlockedLocationIds);
+        Assert.Single(scenario.Store.LocationProgresses, progress =>
+            progress.PlayerId == PlayerId &&
+            progress.LocationId == LocationId.MisthavenPort);
     }
 
     [Fact]
@@ -237,7 +245,13 @@ public class ScenarioServiceTests
         var scenario = CreateScenario();
         var choice = AddEntryChoiceLocationUnlocks(scenario.Store, 4, 7);
         await scenario.Service.StartAsync(PlayerId);
-        scenario.Store.ScenarioProgresses.Single().UnlockedLocationIds.Add(4);
+        scenario.Store.LocationProgresses.Add(new LocationProgress
+        {
+            PlayerId = PlayerId,
+            LocationId = LocationId.MisthavenPort,
+            Status = LocationStatus.Available,
+            UnlockedAtLevel = 1
+        });
 
         var result = await scenario.Service.SelectChoiceAsync(new SelectChoiceRequest
         {
@@ -247,8 +261,8 @@ public class ScenarioServiceTests
         });
 
         Assert.Equal(new[] { 7 }, result.NewLocationIds);
-        Assert.Contains(4, scenario.Store.ScenarioProgresses.Single().UnlockedLocationIds);
-        Assert.Contains(7, scenario.Store.ScenarioProgresses.Single().UnlockedLocationIds);
+        Assert.Contains(LocationId.MisthavenPort, scenario.Store.LocationProgresses.Select(progress => progress.LocationId));
+        Assert.Contains(LocationId.WhisperingWoods, scenario.Store.LocationProgresses.Select(progress => progress.LocationId));
     }
 
     [Fact]
@@ -429,5 +443,15 @@ public class ScenarioServiceTests
             new ExplicitLocationUnlockService(
                 new MockLocationDefinitionRepository(store),
                 new MockLocationProgressRepository(store)));
+    }
+
+    private static StoryChoice AddEntryChoiceLocationUnlocks(InMemoryGameDataStore store, params int[] locationIds)
+    {
+        var choice = store.StoryScenes.Single(scene => scene.Id == EntrySceneId).Choices.Single();
+        choice.Consequences.Add(new ChoiceConsequence
+        {
+            NewLocationIds = locationIds.ToList()
+        });
+        return choice;
     }
 }
