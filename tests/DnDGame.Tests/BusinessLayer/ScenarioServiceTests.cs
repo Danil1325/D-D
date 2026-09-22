@@ -65,7 +65,9 @@ public class ScenarioServiceTests
 
         Assert.Equal(EntrySceneId, result.CurrentSceneId);
         Assert.False(result.IsCompleted);
+        Assert.Empty(result.NewLocationIds);
         Assert.Single(scenario.Store.ScenarioProgresses);
+        Assert.Empty(scenario.Store.ScenarioProgresses.Single().UnlockedLocationIds);
         Assert.Single(scenario.Store.GameSessions);
     }
 
@@ -93,8 +95,10 @@ public class ScenarioServiceTests
         progress.Corruption = 7;
         progress.WarScore = 3;
         progress.StoryFlags["some_flag"] = true;
+        progress.UnlockedLocationIds.Add(4);
 
         var result = await scenario.Service.StartAsync(PlayerId);
+        progress = scenario.Store.ScenarioProgresses.Single();
 
         Assert.Equal(EntrySceneId, result.CurrentSceneId);
         Assert.False(result.IsCompleted);
@@ -102,6 +106,8 @@ public class ScenarioServiceTests
         Assert.Equal(0, result.Corruption);
         Assert.Equal(0, result.WarScore);
         Assert.Empty(result.StoryFlags);
+        Assert.Empty(result.NewLocationIds);
+        Assert.Empty(progress.UnlockedLocationIds);
     }
 
     [Fact]
@@ -168,6 +174,81 @@ public class ScenarioServiceTests
         });
 
         Assert.Equal(choice.NextSceneId, result.CurrentSceneId);
+        Assert.Empty(result.NewLocationIds);
+    }
+
+    [Fact]
+    public async Task SelectChoice_FirstExplicitLocationUnlock_PersistsAndReturnsIt()
+    {
+        var scenario = CreateScenario();
+        var choice = AddEntryChoiceLocationUnlocks(scenario.Store, 4);
+        await scenario.Service.StartAsync(PlayerId);
+
+        var result = await scenario.Service.SelectChoiceAsync(new SelectChoiceRequest
+        {
+            PlayerId = PlayerId,
+            SceneId = EntrySceneId,
+            ChoiceId = choice.Id
+        });
+
+        Assert.Equal(new[] { 4 }, result.NewLocationIds);
+        Assert.Contains(4, scenario.Store.ScenarioProgresses.Single().UnlockedLocationIds);
+    }
+
+    [Fact]
+    public async Task SelectChoice_DuplicateLocationUnlocks_ReturnsLocationOnce()
+    {
+        var scenario = CreateScenario();
+        var choice = AddEntryChoiceLocationUnlocks(scenario.Store, 4, 4);
+        await scenario.Service.StartAsync(PlayerId);
+
+        var result = await scenario.Service.SelectChoiceAsync(new SelectChoiceRequest
+        {
+            PlayerId = PlayerId,
+            SceneId = EntrySceneId,
+            ChoiceId = choice.Id
+        });
+
+        Assert.Equal(new[] { 4 }, result.NewLocationIds);
+    }
+
+    [Fact]
+    public async Task SelectChoice_AlreadyUnlockedLocation_IsNotReturnedAgain()
+    {
+        var scenario = CreateScenario();
+        var choice = AddEntryChoiceLocationUnlocks(scenario.Store, 4);
+        await scenario.Service.StartAsync(PlayerId);
+        scenario.Store.ScenarioProgresses.Single().UnlockedLocationIds.Add(4);
+
+        var result = await scenario.Service.SelectChoiceAsync(new SelectChoiceRequest
+        {
+            PlayerId = PlayerId,
+            SceneId = EntrySceneId,
+            ChoiceId = choice.Id
+        });
+
+        Assert.Empty(result.NewLocationIds);
+        Assert.Contains(4, scenario.Store.ScenarioProgresses.Single().UnlockedLocationIds);
+    }
+
+    [Fact]
+    public async Task SelectChoice_MixedOldAndNewLocationUnlocks_ReturnsOnlyNewLocations()
+    {
+        var scenario = CreateScenario();
+        var choice = AddEntryChoiceLocationUnlocks(scenario.Store, 4, 7);
+        await scenario.Service.StartAsync(PlayerId);
+        scenario.Store.ScenarioProgresses.Single().UnlockedLocationIds.Add(4);
+
+        var result = await scenario.Service.SelectChoiceAsync(new SelectChoiceRequest
+        {
+            PlayerId = PlayerId,
+            SceneId = EntrySceneId,
+            ChoiceId = choice.Id
+        });
+
+        Assert.Equal(new[] { 7 }, result.NewLocationIds);
+        Assert.Contains(4, scenario.Store.ScenarioProgresses.Single().UnlockedLocationIds);
+        Assert.Contains(7, scenario.Store.ScenarioProgresses.Single().UnlockedLocationIds);
     }
 
     [Fact]

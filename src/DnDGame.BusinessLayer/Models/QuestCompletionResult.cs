@@ -16,6 +16,8 @@ public sealed record QuestCompletionResult(
     int SkillPointsGained,
     IReadOnlyList<LocationId> NewLocationIds)
 {
+    public IReadOnlyCollection<int> NewLocationIds { get; init; } = Array.Empty<int>();
+
     public int LevelsGained => CurrentLevel - PreviousLevel;
     public bool DidLevelUp => LevelsGained > 0;
 }

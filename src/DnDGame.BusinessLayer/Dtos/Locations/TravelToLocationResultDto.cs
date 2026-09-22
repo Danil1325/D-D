@@ -2,7 +2,9 @@ using DnDGame.BusinessLayer.Dtos.Scenarios;
 
 namespace DnDGame.BusinessLayer.Dtos.Locations;
 
-/// <summary>Outcome of POST /api/locations/travel.</summary>
+/// <summary>
+/// Response shape after a successful location travel transition.
+/// </summary>
 public class TravelToLocationResultDto
 {
     public LocationDetailsDto CurrentLocation { get; init; } = new();

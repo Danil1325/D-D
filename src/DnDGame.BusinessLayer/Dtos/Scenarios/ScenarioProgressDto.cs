@@ -5,7 +5,9 @@ namespace DnDGame.BusinessLayer.Dtos.Scenarios;
 /// <summary>
 /// Response shape for the scenario run's persistent state: POST
 /// /api/scenario/start/{playerId} and POST /api/scenario/choice. Mirrors the
-/// domain <see cref="ScenarioProgress"/> entity without exposing it.
+/// domain <see cref="ScenarioProgress"/> entity without exposing it. NewLocationIds
+/// is transient response data for the action that produced the DTO, not the full
+/// persisted unlocked-location set.
 /// </summary>
 public class ScenarioProgressDto
 {
