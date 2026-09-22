@@ -26,6 +26,12 @@ public class MockBattleRepository : IBattleRepository
         return Task.FromResult(battle);
     }
 
+    public Task<IReadOnlyList<Battle>> GetByGameSessionIdAsync(int gameSessionId)
+    {
+        var battles = _store.Battles.Where(b => b.GameSessionId == gameSessionId).ToList();
+        return Task.FromResult<IReadOnlyList<Battle>>(battles);
+    }
+
     public Task<Battle> AddAsync(Battle battle)
     {
         battle.Id = _store.GetNextBattleId();

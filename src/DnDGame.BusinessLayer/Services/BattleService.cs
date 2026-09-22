@@ -2,6 +2,7 @@ using DnDGame.BusinessLayer.Common.Errors;
 using DnDGame.BusinessLayer.Common.Exceptions;
 using DnDGame.BusinessLayer.Dtos.Battles;
 using DnDGame.BusinessLayer.Engines.Interfaces;
+using DnDGame.BusinessLayer.Models;
 using DnDGame.BusinessLayer.Repositories.Interfaces;
 using DnDGame.BusinessLayer.Services.Interfaces;
 using DnDGame.BusinessLayer.Validation;
@@ -14,6 +15,7 @@ using DnDGame.Domain.Entities.Characters;
 using DnDGame.Domain.Entities.Enemies;
 using DnDGame.Domain.Entities.Game;
 using DnDGame.Domain.Enums;
+using LocationId = DnDGame.Domain.Entities.Locations.LocationId;
 
 namespace DnDGame.BusinessLayer.Services;
 
@@ -31,6 +33,7 @@ public class BattleService : IBattleService
     private readonly PlayRules _playRules;
     private readonly ICurrentPlayerService _currentPlayerService;
     private readonly ICombatExperienceCalculator _combatExperienceCalculator;
+    private readonly ILocationEncounterService _locationEncounterService;
 
     public BattleService(
         IBattleRepository battleRepository,
@@ -44,7 +47,8 @@ public class BattleService : IBattleService
         IBattleEngine battleEngine,
         PlayRules playRules,
         ICurrentPlayerService currentPlayerService,
-        ICombatExperienceCalculator combatExperienceCalculator)
+        ICombatExperienceCalculator combatExperienceCalculator,
+        ILocationEncounterService locationEncounterService)
     {
         _battleRepository = battleRepository;
         _battleDeckRepository = battleDeckRepository;
@@ -58,6 +62,7 @@ public class BattleService : IBattleService
         _playRules = playRules;
         _currentPlayerService = currentPlayerService;
         _combatExperienceCalculator = combatExperienceCalculator;
+        _locationEncounterService = locationEncounterService;
     }
 
     public async Task<BattleStateDto> StartBattleAsync(StartBattleRequestDto request)
@@ -104,6 +109,75 @@ public class BattleService : IBattleService
             throw new DomainException(ErrorCodes.NotFound, $"Deck {request.DeckId} was not found.");
         }
 
+        var (createdBattle, createdBattleDeck) = await CreateBattleAsync(session, player, enemy, deck, locationId: null);
+        return BattleStateDto.FromDomain(createdBattle, createdBattleDeck, enemy.Health);
+    }
+
+    public async Task<BattleStateDto> StartLocationEncounterBattleAsync(StartLocationEncounterBattleRequestDto request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        RequirePositiveId(request.GameSessionId, "gameSessionId");
+        RequirePositiveId(request.DeckId, "deckId");
+        RequirePositiveId(request.EnemyId, "enemyId");
+
+        var currentPlayerId = _currentPlayerService.GetCurrentPlayerId();
+
+        var session = await _gameSessionRepository.GetByIdAsync(request.GameSessionId);
+        if (session is null || session.CharacterId != currentPlayerId)
+        {
+            throw new DomainException(ErrorCodes.NotFound, $"Game session {request.GameSessionId} was not found.");
+        }
+
+        var existingActiveBattle = await _battleRepository.GetActiveByGameSessionIdAsync(session.Id);
+        if (existingActiveBattle is not null)
+        {
+            throw new DomainException(ErrorCodes.Conflict, "This game session already has a battle in progress.");
+        }
+
+        // Re-validate against ILocationEncounterService's own filtering rather than
+        // duplicating it — only an EnemyId it currently offers may be fought,
+        // regardless of what the client claims.
+        var selection = await _locationEncounterService.GetAvailableEncountersAsync(
+            new EncounterSelectionContext(request.LocationId, session.Id, request.SubLocation));
+        if (!selection.AvailableEncounters.Any(option => option.EnemyId == request.EnemyId))
+        {
+            throw new DomainException(
+                ErrorCodes.Conflict,
+                $"Enemy {request.EnemyId} is not currently an available encounter at this location.");
+        }
+
+        var enemy = await _enemyRepository.GetByIdAsync(request.EnemyId);
+        if (enemy is null)
+        {
+            throw new DomainException(ErrorCodes.NotFound, $"Enemy {request.EnemyId} was not found.");
+        }
+
+        var player = await _characterRepository.GetByIdAsync(currentPlayerId);
+        if (player is null)
+        {
+            throw new DomainException(ErrorCodes.NotFound, $"Character {currentPlayerId} was not found.");
+        }
+
+        var deck = await _deckRepository.GetByIdAsync(request.DeckId);
+        if (deck is null || deck.CharacterId != currentPlayerId)
+        {
+            throw new DomainException(ErrorCodes.NotFound, $"Deck {request.DeckId} was not found.");
+        }
+
+        var (createdBattle, createdBattleDeck) = await CreateBattleAsync(session, player, enemy, deck, request.LocationId);
+        return BattleStateDto.FromDomain(createdBattle, createdBattleDeck, enemy.Health);
+    }
+
+    /// <summary>
+    /// Shared by both start paths: resolves the deck into a battle, runs
+    /// IBattleEngine.StartBattle, and persists the resulting Battle/BattleDeck.
+    /// LocationId is null for the story-node path (StartBattleAsync) and set for
+    /// the location-encounter path, so "already defeated" checks can be scoped
+    /// correctly (see Battle.LocationId's remarks).
+    /// </summary>
+    private async Task<(Battle Battle, BattleDeck BattleDeck)> CreateBattleAsync(
+        GameSession session, PlayerCharacter player, Enemy enemy, Deck deck, LocationId? locationId)
+    {
         var battleDeck = _deckEngine.CreateBattleDeck(deck);
 
         // Health/block/turn-number/RewardsGranted are reset by IBattleEngine.StartBattle
@@ -132,6 +206,7 @@ public class BattleService : IBattleService
         {
             GameSessionId = session.Id,
             EnemyId = enemy.Id,
+            LocationId = locationId,
             StartedAt = DateTime.UtcNow
         };
         ApplyState(battle, finalState);
@@ -143,7 +218,7 @@ public class BattleService : IBattleService
         await AwardCombatExperienceAsync(createdBattle, player, enemy);
         await _battleRepository.UpdateAsync(createdBattle);
 
-        return BattleStateDto.FromDomain(createdBattle, createdBattleDeck, enemy.Health);
+        return (createdBattle, createdBattleDeck);
     }
 
     public async Task<BattleStateDto> GetBattleStateAsync(int battleId)

@@ -4,8 +4,10 @@ using DnDGame.BusinessLayer.Common.Exceptions;
 using DnDGame.BusinessLayer.Models;
 using DnDGame.BusinessLayer.Repositories.Interfaces;
 using DnDGame.BusinessLayer.Services.Interfaces;
+using DnDGame.Domain.Engine.Locations;
 using DnDGame.Domain.Entities.Characters;
 using DnDGame.Domain.Entities.Game;
+using DnDGame.Domain.Entities.Locations;
 using DnDGame.Domain.Enums;
 
 namespace DnDGame.BusinessLayer.Services;
@@ -23,6 +25,9 @@ public sealed class QuestService : IQuestService
     private readonly ICharacterRepository _characterRepository;
     private readonly IExperienceService _experienceService;
     private readonly ICurrentPlayerService _currentPlayerService;
+    private readonly ILocationProgressRepository _locationProgressRepository;
+    private readonly ILocationUnlockEngine _locationUnlockEngine;
+    private readonly ILocationRouteProvider _locationRouteProvider;
 
     public QuestService(
         IQuestRepository questRepository,
@@ -31,7 +36,10 @@ public sealed class QuestService : IQuestService
         IGameSessionRepository gameSessionRepository,
         ICharacterRepository characterRepository,
         IExperienceService experienceService,
-        ICurrentPlayerService currentPlayerService)
+        ICurrentPlayerService currentPlayerService,
+        ILocationProgressRepository locationProgressRepository,
+        ILocationUnlockEngine locationUnlockEngine,
+        ILocationRouteProvider locationRouteProvider)
     {
         _questRepository = questRepository;
         _playerQuestRepository = playerQuestRepository;
@@ -40,6 +48,9 @@ public sealed class QuestService : IQuestService
         _characterRepository = characterRepository;
         _experienceService = experienceService;
         _currentPlayerService = currentPlayerService;
+        _locationProgressRepository = locationProgressRepository;
+        _locationUnlockEngine = locationUnlockEngine;
+        _locationRouteProvider = locationRouteProvider;
     }
 
     public async Task<IReadOnlyList<QuestView>> GetAvailableQuestsAsync(

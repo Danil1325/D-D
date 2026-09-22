@@ -3,8 +3,10 @@ using DnDGame.BusinessLayer.Common.Exceptions;
 using DnDGame.BusinessLayer.Services;
 using DnDGame.BusinessLayer.Services.Interfaces;
 using DnDGame.Domain.Configuration;
+using DnDGame.Domain.Engine.Locations;
 using DnDGame.Domain.Entities.Characters;
 using DnDGame.Domain.Entities.Game;
+using DnDGame.Domain.Entities.Locations;
 using DnDGame.Domain.Enums;
 using DnDGame.MockData;
 using DnDGame.MockData.Repositories;
@@ -525,7 +527,10 @@ public class QuestServiceTests
             new MockGameSessionRepository(store),
             new MockCharacterRepository(store),
             new ExperienceService(new LevelProgressionRules()),
-            new FixedCurrentPlayerService(CurrentPlayerId));
+            new FixedCurrentPlayerService(CurrentPlayerId),
+            new MockLocationProgressRepository(store),
+            new LocationUnlockEngine(),
+            new LocationRouteProvider());
     }
 
     private static int QuestId(InMemoryGameDataStore store, string code)

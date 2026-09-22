@@ -29,10 +29,12 @@ using DnDGame.Domain.Engine.Common;
 using DnDGame.Domain.Engine.Dice;
 using DnDGame.Domain.Engine.EnemyActions;
 using DnDGame.Domain.Engine.Initiative;
+using DnDGame.Domain.Engine.Locations;
 using DnDGame.Domain.Engine.SavingThrows;
 using DnDGame.Domain.Engine.Scenario;
 using DnDGame.Domain.Engine.Turn;
 using DnDGame.Domain.Entities.Accounts;
+using DnDGame.Domain.Entities.Locations;
 using DnDGame.MockData;
 using DnDGame.MockData.Repositories;
 using DnDGame.MockData.Services;
@@ -115,6 +117,13 @@ public static class DependencyInjection
             mapper.Register(EngineErrorCodes.EnemyDead, StatusCodes.Status409Conflict);
             mapper.Register(EngineErrorCodes.MissingCombatRule, StatusCodes.Status500InternalServerError);
             mapper.Register(EngineErrorCodes.RewardsAlreadyGranted, StatusCodes.Status409Conflict);
+
+            // Domain.Engine.Locations.ILocationUnlockEngine's EngineResult failures
+            // (see LocationService.TravelToLocationAsync).
+            mapper.Register(EngineErrorCodes.LocationInvalidContext, StatusCodes.Status400BadRequest);
+            mapper.Register(EngineErrorCodes.LocationRequirementNotMet, StatusCodes.Status400BadRequest);
+            mapper.Register(EngineErrorCodes.LocationAlreadyUnlocked, StatusCodes.Status409Conflict);
+            mapper.Register(EngineErrorCodes.LocationNotUnlocked, StatusCodes.Status409Conflict);
 
             // Account/auth codes (see AccountErrorCodes remarks for why login uses one
             // generic code instead of distinguishing "unknown account" from "wrong password").
@@ -236,6 +245,9 @@ public static class DependencyInjection
         services.AddScoped<IScenarioProgressRepository, MockScenarioProgressRepository>();
         services.AddScoped<IStorySceneRepository, MockStorySceneRepository>();
         services.AddScoped<ILocationRepository, MockLocationRepository>();
+        services.AddScoped<ILocationDefinitionRepository, MockLocationDefinitionRepository>();
+        services.AddScoped<ILocationEncounterRepository, MockLocationEncounterRepository>();
+        services.AddScoped<ILocationProgressRepository, MockLocationProgressRepository>();
 
         services.AddScoped<ICurrentPlayerService, MockCurrentPlayerService>();
         services.AddScoped<ICardService, CardService>();
@@ -247,8 +259,15 @@ public static class DependencyInjection
         services.AddSingleton<IPasswordHasher<Account>, PasswordHasher<Account>>();
         services.AddScoped<IAccountService, AccountService>();
 
-        // BattleService depends on Domain.Engine.Battle.IBattleEngine; the engine
-        // set it needs is registered in AddBattleTurnSystemServices, so it resolves.
+        // Registered here (rather than AddScenarioServices) because BattleService
+        // (below, same method) depends on it directly — keeping both in AddMockData
+        // means any composition that needs IBattleService stays self-sufficient
+        // without also requiring AddScenarioServices.
+        services.AddScoped<ILocationEncounterService, LocationEncounterService>();
+
+        // BattleService depends on Domain.Engine.Battle.IBattleEngine (the engine
+        // set it needs is registered in AddBattleTurnSystemServices) and on
+        // ILocationEncounterService (registered just above), so both must resolve.
         services.AddScoped<IBattleService, BattleService>();
         return services;
     }
@@ -260,10 +279,17 @@ public static class DependencyInjection
     public static IServiceCollection AddScenarioServices(this IServiceCollection services)
     {
         services.AddSingleton<IScenarioEngine, ScenarioEngine>();
+
+        // Stateless/pure, same as IScenarioEngine above — QuestService (below) uses
+        // both to check which locations a completed quest newly unlocks (BACK-LOC-07).
+        services.AddSingleton<ILocationRouteProvider, LocationRouteProvider>();
+        services.AddSingleton<ILocationUnlockEngine, LocationUnlockEngine>();
+
         services.AddScoped<IQuestService, QuestService>();
         services.AddScoped<IScenarioService, ScenarioService>();
         services.AddScoped<ILocationProgressionService, LocationProgressionService>();
         services.AddScoped<IProgressionService, ProgressionService>();
+        services.AddScoped<ILocationService, LocationService>();
         return services;
     }
 }

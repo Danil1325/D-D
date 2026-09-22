@@ -18,6 +18,17 @@ public interface IBattleService
     /// </summary>
     Task<BattleStateDto> StartBattleAsync(StartBattleRequestDto request);
 
+    /// <summary>
+    /// Starts a battle against an enemy chosen from a location's random encounter
+    /// pool (ILocationEncounterService), rather than the story-node's fixed enemy.
+    /// Throws DomainException(CONFLICT) if the session already has an active battle,
+    /// or if EnemyId is not currently one of that location's available encounters —
+    /// re-validated server-side against ILocationEncounterService, never trusted
+    /// from the client. The created Battle records LocationId, so a one-time Boss
+    /// fought this way is correctly excluded from future selections at that location.
+    /// </summary>
+    Task<BattleStateDto> StartLocationEncounterBattleAsync(StartLocationEncounterBattleRequestDto request);
+
     /// <summary>Throws DomainException(NOT_FOUND) if the battle doesn't exist or isn't owned by the current player.</summary>
     Task<BattleStateDto> GetBattleStateAsync(int battleId);
 
