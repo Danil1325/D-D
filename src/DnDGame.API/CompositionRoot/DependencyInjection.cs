@@ -130,6 +130,10 @@ public static class DependencyInjection
             mapper.Register(AccountErrorCodes.EmailAlreadyInUse, StatusCodes.Status409Conflict);
             mapper.Register(AccountErrorCodes.UsernameAlreadyInUse, StatusCodes.Status409Conflict);
             mapper.Register(AccountErrorCodes.InvalidCredentials, StatusCodes.Status401Unauthorized);
+
+            // Character-creation codes (see CharacterService).
+            mapper.Register(CharacterErrorCodes.RaceNotFound, StatusCodes.Status404NotFound);
+            mapper.Register(CharacterErrorCodes.ClassNotFound, StatusCodes.Status404NotFound);
             return mapper;
         });
 
@@ -250,6 +254,7 @@ public static class DependencyInjection
         services.AddScoped<ILocationProgressRepository, MockLocationProgressRepository>();
 
         services.AddScoped<ICurrentPlayerService, MockCurrentPlayerService>();
+        services.AddScoped<ICharacterService, CharacterService>();
         services.AddScoped<ICardService, CardService>();
         services.AddScoped<IDeckService, DeckService>();
 
