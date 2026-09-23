@@ -14,6 +14,7 @@ internal static class GameDataSeeder
         PortraitSeedData.Seed(store);
         TalentSeedData.Seed(store);
         CardSeedData.Seed(store);
+        AchievementSeedData.Seed(store);
         EnemySeedData.Seed(store);
 LocationSeedData.Seed(store);
         LocationEncounterSeedData.Seed(store);

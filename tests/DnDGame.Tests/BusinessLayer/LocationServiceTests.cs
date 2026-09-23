@@ -577,7 +577,12 @@ public class LocationServiceTests
             new MockLocationRepository(store),
             new ExplicitLocationUnlockService(
                 new MockLocationDefinitionRepository(store),
-                new MockLocationProgressRepository(store)));
+                new MockLocationProgressRepository(store),
+                new AchievementService(
+                    new MockAchievementRepository(store),
+                    new MockAchievementProgressRepository(store),
+                    new MockCharacterRepository(store),
+                    new FixedCurrentPlayerService(CurrentPlayerId))));
 
         return new LocationService(
             new MockLocationDefinitionRepository(store),

@@ -1,4 +1,5 @@
 using DnDGame.Domain.Entities.Accounts;
+using DnDGame.Domain.Entities.Achievements;
 using DnDGame.Domain.Entities.Characters;
 using DnDGame.Domain.Entities.Cards;
 using DnDGame.Domain.Entities.Classes;
@@ -43,6 +44,7 @@ public class InMemoryGameDataStore
     public List<StoryNode> StoryNodes { get; } = new();
     public List<Choice> Choices { get; } = new();
     public List<Card> Cards { get; } = new();
+    public List<Achievement> Achievements { get; } = new();
 
     // --- Runtime / gameplay data (empty until Phase 3 starts creating characters) ---
     public List<PlayerCharacter> Characters { get; } = new();
@@ -68,6 +70,10 @@ public class InMemoryGameDataStore
     // --- Runtime / gameplay data (empty until a quest completion unlocks a
     // location for a player — see QuestService.EvaluateLocationUnlocksAsync) ---
     public List<LocationProgress> LocationProgresses { get; } = new();
+
+    // --- Runtime / gameplay data (empty until a game event advances an
+    // achievement — see QuestService/BattleService/CharacterService hooks) ---
+    public List<AchievementProgress> AchievementProgresses { get; } = new();
 
     // --- Auth data (empty until someone registers). Deliberately not linked to
     // Characters — there is no Account-to-PlayerCharacter relationship yet.

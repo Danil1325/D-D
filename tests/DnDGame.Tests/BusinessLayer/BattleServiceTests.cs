@@ -367,7 +367,12 @@ public class BattleServiceTests
             playRules,
             currentPlayerService,
             new CombatExperienceCalculator(new ExperienceService(new LevelProgressionRules())),
-            locationEncounterService);
+            locationEncounterService,
+            new AchievementService(
+                new MockAchievementRepository(store),
+                new MockAchievementProgressRepository(store),
+                characterRepository,
+                currentPlayerService));
 
         return (service, store, engine, session, deck, enemy, player);
     }

@@ -239,7 +239,12 @@ public class CharacterServiceTests
             new MockRaceRepository(store),
             new MockClassRepository(store),
             new MockCharacterPortraitRepository(store),
-            new MockCurrentPlayerService());
+            new MockCurrentPlayerService(),
+            new AchievementService(
+                new MockAchievementRepository(store),
+                new MockAchievementProgressRepository(store),
+                new MockCharacterRepository(store),
+                new MockCurrentPlayerService()));
         return (service, store);
     }
 }

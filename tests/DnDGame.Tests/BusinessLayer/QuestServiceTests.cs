@@ -662,6 +662,12 @@ public class QuestServiceTests
 
     private static IQuestService CreateService(InMemoryGameDataStore store)
     {
+        var currentPlayerService = new FixedCurrentPlayerService(CurrentPlayerId);
+        var achievementService = new AchievementService(
+            new MockAchievementRepository(store),
+            new MockAchievementProgressRepository(store),
+            new MockCharacterRepository(store),
+            currentPlayerService);
         return new QuestService(
             new MockQuestRepository(store),
             new MockPlayerQuestRepository(store),
@@ -669,13 +675,15 @@ public class QuestServiceTests
             new MockGameSessionRepository(store),
             new MockCharacterRepository(store),
             new ExperienceService(new LevelProgressionRules()),
-            new FixedCurrentPlayerService(CurrentPlayerId),
+            currentPlayerService,
             new MockLocationProgressRepository(store),
             new LocationUnlockEngine(),
             new LocationRouteProvider(),
             new ExplicitLocationUnlockService(
                 new MockLocationDefinitionRepository(store),
-                new MockLocationProgressRepository(store)));
+                new MockLocationProgressRepository(store),
+                achievementService),
+            achievementService);
     }
 
     private static int QuestId(InMemoryGameDataStore store, string code)
