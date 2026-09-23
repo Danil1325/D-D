@@ -371,6 +371,7 @@ public class BattleServiceTests
             new AchievementService(
                 new MockAchievementRepository(store),
                 new MockAchievementProgressRepository(store),
+                new MockAchievementEventRepository(store),
                 characterRepository,
                 currentPlayerService));
 

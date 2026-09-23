@@ -3,6 +3,7 @@ using DnDGame.BusinessLayer.Common.Exceptions;
 using DnDGame.BusinessLayer.Dtos.Achievements;
 using DnDGame.BusinessLayer.Dtos.Characters;
 using DnDGame.BusinessLayer.Services;
+using DnDGame.BusinessLayer.Services.Interfaces;
 using DnDGame.Domain.Entities.Characters;
 using DnDGame.Domain.Enums;
 using DnDGame.MockData;
@@ -15,6 +16,8 @@ public class AchievementServiceTests
 {
     private const int PlayerCharacterId = 1;
 
+    // --- Catalog ---
+
     [Fact]
     public async Task GetCatalogAsync_ReturnsTheSeededAchievements()
     {
@@ -26,6 +29,8 @@ public class AchievementServiceTests
         Assert.Contains(catalog, entry => entry.Code == "A_HERO_IS_BORN");
         Assert.All(catalog, entry => Assert.True(entry.TargetAmount > 0));
     }
+
+    // --- Progress ---
 
     [Fact]
     public async Task RegisterCharacterCreated_CompletesTheCreationAchievement()
@@ -40,47 +45,7 @@ public class AchievementServiceTests
         Assert.True(creation.IsCompleted);
         Assert.NotNull(creation.CompletedAt);
         Assert.Equal(1, progress.CompletedCount);
-    }
-
-    [Fact]
-    public async Task RegisterQuestCompleted_ReachesTargetAfterEnoughQuests()
-    {
-        var (service, _) = CreateService();
-
-        await service.RegisterQuestCompletedAsync(PlayerCharacterId);
-
-        var firstStep = (await service.GetProgressForPlayerAsync(PlayerCharacterId))
-            .Achievements.Single(entry => entry.Code == "FIRST_STEPS");
-        Assert.True(firstStep.IsCompleted);
-
-        await service.RegisterQuestCompletedAsync(PlayerCharacterId);
-
-        var conqueror = (await service.GetProgressForPlayerAsync(PlayerCharacterId))
-            .Achievements.Single(entry => entry.Code == "QUEST_CONQUEROR");
-        Assert.Equal(2, conqueror.CurrentAmount);
-        Assert.False(conqueror.IsCompleted);
-    }
-
-    [Fact]
-    public async Task RegisterBattleVictory_AfterTarget_IgnoresFurtherEvents()
-    {
-        var (service, _) = CreateService();
-
-        for (var i = 0; i < 10; i++)
-        {
-            await service.RegisterBattleVictoryAsync(PlayerCharacterId);
-        }
-
-        var before = (await service.GetProgressForPlayerAsync(PlayerCharacterId))
-            .Achievements.Single(entry => entry.Code == "VICTORIOUS_WARRIOR");
-        Assert.Equal(10, before.CurrentAmount);
-        Assert.True(before.IsCompleted);
-
-        await service.RegisterBattleVictoryAsync(PlayerCharacterId);
-
-        var after = (await service.GetProgressForPlayerAsync(PlayerCharacterId))
-            .Achievements.Single(entry => entry.Code == "VICTORIOUS_WARRIOR");
-        Assert.Equal(10, after.CurrentAmount);
+        Assert.Equal(7, progress.TotalCount);
     }
 
     [Fact]
@@ -88,7 +53,7 @@ public class AchievementServiceTests
     {
         var (service, _) = CreateService();
 
-        await service.RegisterQuestCompletedAsync(PlayerCharacterId);
+        await service.RegisterQuestCompletedAsync(PlayerCharacterId, questId: 1);
 
         var other = await service.GetProgressForPlayerAsync(2);
         Assert.Equal(0, other.Achievements.Single(entry => entry.Code == "FIRST_STEPS").CurrentAmount);
@@ -98,7 +63,7 @@ public class AchievementServiceTests
     public async Task GetProgressForCurrentPlayer_ResolvesTheCharacterByOwnerId()
     {
         var (service, store) = CreateService();
-        store.Characters.Add(new DnDGame.Domain.Entities.Characters.PlayerCharacter
+        store.Characters.Add(new PlayerCharacter
         {
             Id = PlayerCharacterId,
             OwnerId = MockCurrentPlayerService.MockPlayerId.ToString(),
@@ -124,15 +89,112 @@ public class AchievementServiceTests
         Assert.Equal(ErrorCodes.NotFound, exception.ErrorCode);
     }
 
-    private static (AchievementService Service, InMemoryGameDataStore Store) CreateService()
+    // --- Thresholds ---
+
+    [Fact]
+    public async Task ThresholdAchievement_CompletesAfterDistinctEventsReachTarget()
     {
-        var store = MockDataBootstrapper.CreateSeededStore();
-        var service = new AchievementService(
-            new MockAchievementRepository(store),
-            new MockAchievementProgressRepository(store),
-            new MockCharacterRepository(store),
-            new MockCurrentPlayerService());
-        return (service, store);
+        var (service, _) = CreateService();
+
+        for (var questId = 1; questId <= 5; questId++)
+        {
+            await service.RegisterQuestCompletedAsync(PlayerCharacterId, questId);
+        }
+
+        var conqueror = (await service.GetProgressForPlayerAsync(PlayerCharacterId))
+            .Achievements.Single(entry => entry.Code == "QUEST_CONQUEROR");
+        Assert.Equal(5, conqueror.CurrentAmount);
+        Assert.True(conqueror.IsCompleted);
+        Assert.NotNull(conqueror.CompletedAt);
+    }
+
+    [Fact]
+    public async Task ThresholdAchievement_DoesNotCompleteBelowTarget()
+    {
+        var (service, _) = CreateService();
+
+        for (var battleId = 1; battleId <= 9; battleId++)
+        {
+            await service.RegisterBattleVictoryAsync(PlayerCharacterId, battleId);
+        }
+
+        var warrior = (await service.GetProgressForPlayerAsync(PlayerCharacterId))
+            .Achievements.Single(entry => entry.Code == "VICTORIOUS_WARRIOR");
+        Assert.Equal(9, warrior.CurrentAmount);
+        Assert.False(warrior.IsCompleted);
+        Assert.Null(warrior.CompletedAt);
+    }
+
+    // --- Repeated events are idempotent ---
+
+    [Fact]
+    public async Task SameQuestEvent_ReportedTwice_CountsOnce()
+    {
+        var (service, store) = CreateService();
+
+        await service.RegisterQuestCompletedAsync(PlayerCharacterId, questId: 7);
+        await service.RegisterQuestCompletedAsync(PlayerCharacterId, questId: 7);
+
+        var firstStep = (await service.GetProgressForPlayerAsync(PlayerCharacterId))
+            .Achievements.Single(entry => entry.Code == "FIRST_STEPS");
+        Assert.Equal(1, firstStep.CurrentAmount);
+        Assert.True(firstStep.IsCompleted);
+
+        var conqueror = (await service.GetProgressForPlayerAsync(PlayerCharacterId))
+            .Achievements.Single(entry => entry.Code == "QUEST_CONQUEROR");
+        Assert.Equal(1, conqueror.CurrentAmount);
+        Assert.False(conqueror.IsCompleted);
+
+        Assert.Single(store.AchievementEvents, @event => @event.Type == AchievementType.QuestsCompleted);
+    }
+
+    [Fact]
+    public async Task SameBattleEvent_ReportedTwice_DoesNotInflateTheThreshold()
+    {
+        var (service, _) = CreateService();
+
+        await service.RegisterBattleVictoryAsync(PlayerCharacterId, battleId: 3);
+        await service.RegisterBattleVictoryAsync(PlayerCharacterId, battleId: 3);
+        await service.RegisterBattleVictoryAsync(PlayerCharacterId, battleId: 3);
+
+        var warrior = (await service.GetProgressForPlayerAsync(PlayerCharacterId))
+            .Achievements.Single(entry => entry.Code == "VICTORIOUS_WARRIOR");
+        Assert.Equal(1, warrior.CurrentAmount);
+    }
+
+    [Fact]
+    public async Task SameLocationEvent_ReportedTwice_CountsOnce()
+    {
+        var (service, store) = CreateService();
+
+        await service.RegisterLocationUnlockedAsync(PlayerCharacterId, DnDGame.Domain.Entities.Locations.LocationId.HerosOverlook);
+        await service.RegisterLocationUnlockedAsync(PlayerCharacterId, DnDGame.Domain.Entities.Locations.LocationId.HerosOverlook);
+
+        var wanderer = (await service.GetProgressForPlayerAsync(PlayerCharacterId))
+            .Achievements.Single(entry => entry.Code == "WANDERER");
+        Assert.Equal(1, wanderer.CurrentAmount);
+        Assert.Single(store.AchievementEvents, @event => @event.Type == AchievementType.LocationsUnlocked);
+    }
+
+    // --- The unlock timestamp is preserved ---
+
+    [Fact]
+    public async Task CompletedAt_IsTheFirstTimeTheThresholdWasReachedAndNeverOverwritten()
+    {
+        var (service, _) = CreateService();
+
+        await service.RegisterQuestCompletedAsync(PlayerCharacterId, questId: 1);
+        var completedAt = (await service.GetProgressForPlayerAsync(PlayerCharacterId))
+            .Achievements.Single(entry => entry.Code == "FIRST_STEPS").CompletedAt;
+        Assert.NotNull(completedAt);
+
+        // A repeated report of the same (already counted) event must not touch it.
+        await service.RegisterQuestCompletedAsync(PlayerCharacterId, questId: 1);
+
+        var again = (await service.GetProgressForPlayerAsync(PlayerCharacterId))
+            .Achievements.Single(entry => entry.Code == "FIRST_STEPS");
+        Assert.Equal(completedAt, again.CompletedAt);
+        Assert.Equal(1, again.CurrentAmount);
     }
 
     // --- Hook wiring: events fired by the application services land in the store ---
@@ -148,11 +210,7 @@ public class AchievementServiceTests
             new MockClassRepository(store),
             new MockCharacterPortraitRepository(store),
             currentPlayer,
-            new AchievementService(
-                new MockAchievementRepository(store),
-                new MockAchievementProgressRepository(store),
-                new MockCharacterRepository(store),
-                currentPlayer));
+            CreateAchievementService(store, currentPlayer));
 
         await characterService.CreateNewGameAsync(new NewGameCharacterRequestDto
         {
@@ -164,6 +222,8 @@ public class AchievementServiceTests
         var creation = Assert.Single(store.AchievementProgresses, row => row.AchievementId == 101);
         Assert.Equal(1, creation.CurrentAmount);
         Assert.NotNull(creation.CompletedAt);
+        var eventLeadgerRow = Assert.Single(store.AchievementEvents, @event => @event.Type == AchievementType.CharacterCreated);
+        Assert.Equal(PlayerCharacterId.ToString(), eventLeadgerRow.EventKey);
     }
 
     [Fact]
@@ -185,11 +245,7 @@ public class AchievementServiceTests
         var unlockService = new ExplicitLocationUnlockService(
             new MockLocationDefinitionRepository(store),
             new MockLocationProgressRepository(store),
-            new AchievementService(
-                new MockAchievementRepository(store),
-                new MockAchievementProgressRepository(store),
-                new MockCharacterRepository(store),
-                currentPlayer));
+            CreateAchievementService(store, currentPlayer));
 
         var unlocked = await unlockService.UnlockExplicitLocationsAsync(character, new[] { 4 });
 
@@ -197,5 +253,22 @@ public class AchievementServiceTests
         var wanderer = Assert.Single(store.AchievementProgresses, row => row.AchievementId == 401);
         Assert.Equal(1, wanderer.CurrentAmount);
         Assert.NotNull(wanderer.CompletedAt);
+    }
+
+    private static (AchievementService Service, InMemoryGameDataStore Store) CreateService()
+    {
+        var store = MockDataBootstrapper.CreateSeededStore();
+        var service = CreateAchievementService(store, new MockCurrentPlayerService());
+        return (service, store);
+    }
+
+    private static AchievementService CreateAchievementService(InMemoryGameDataStore store, ICurrentPlayerService currentPlayerService)
+    {
+        return new AchievementService(
+            new MockAchievementRepository(store),
+            new MockAchievementProgressRepository(store),
+            new MockAchievementEventRepository(store),
+            new MockCharacterRepository(store),
+            currentPlayerService);
     }
 }

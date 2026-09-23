@@ -133,6 +133,7 @@ public class ExplicitLocationUnlockServiceTests
                 new AchievementService(
                     new MockAchievementRepository(store),
                     new MockAchievementProgressRepository(store),
+                    new MockAchievementEventRepository(store),
                     new MockCharacterRepository(store),
                     new MockCurrentPlayerService())),
             store,

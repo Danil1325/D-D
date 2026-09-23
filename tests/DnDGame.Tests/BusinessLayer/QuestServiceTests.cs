@@ -627,6 +627,27 @@ public class QuestServiceTests
     }
 
     [Fact]
+    public async Task CompleteQuestForPlayer_RecordsExactlyOneAchievementEvent()
+    {
+        var (service, store, _, _, _) = CreateScenario();
+        var firstMainQuestId = QuestId(store, "MQ-01");
+        await service.StartQuestForPlayerAsync(1, firstMainQuestId);
+
+        await service.CompleteQuestForPlayerAsync(1, firstMainQuestId);
+
+        var @event = Assert.Single(store.AchievementEvents, row => row.Type == AchievementType.QuestsCompleted);
+        Assert.Equal(firstMainQuestId.ToString(), @event.EventKey);
+        var firstStep = Assert.Single(store.AchievementProgresses, row => row.AchievementId == 201);
+        Assert.Equal(1, firstStep.CurrentAmount);
+        Assert.NotNull(firstStep.CompletedAt);
+
+        // Re-reporting the same completion is rejected at the service boundary, so
+        // the same quest can never advance achievements twice.
+        await Assert.ThrowsAsync<DomainException>(() => service.CompleteQuestForPlayerAsync(1, firstMainQuestId));
+        Assert.Single(store.AchievementEvents, row => row.Type == AchievementType.QuestsCompleted);
+    }
+
+    [Fact]
     public async Task PlayerBasedQueries_UnknownPlayer_FailsWithNotFound()
     {
         var (service, _, _, _, _) = CreateScenario();
@@ -666,6 +687,7 @@ public class QuestServiceTests
         var achievementService = new AchievementService(
             new MockAchievementRepository(store),
             new MockAchievementProgressRepository(store),
+            new MockAchievementEventRepository(store),
             new MockCharacterRepository(store),
             currentPlayerService);
         return new QuestService(

@@ -359,7 +359,7 @@ public class BattleService : IBattleService
         // victory achievement event fires once per battle, never per re-evaluation.
         if (!battle.RewardsGranted)
         {
-            await _achievementService.RegisterBattleVictoryAsync(player.Id);
+            await _achievementService.RegisterBattleVictoryAsync(player.Id, battle.Id);
         }
 
         var session = await _gameSessionRepository.GetByIdAsync(battle.GameSessionId);

@@ -75,6 +75,10 @@ public class InMemoryGameDataStore
     // achievement — see QuestService/BattleService/CharacterService hooks) ---
     public List<AchievementProgress> AchievementProgresses { get; } = new();
 
+    // --- Runtime / gameplay data (empty until the first real game event is
+    // counted toward an achievement — the exactly-once ledger) ---
+    public List<AchievementEvent> AchievementEvents { get; } = new();
+
     // --- Auth data (empty until someone registers). Deliberately not linked to
     // Characters — there is no Account-to-PlayerCharacter relationship yet.
     public List<Account> Accounts { get; } = new();

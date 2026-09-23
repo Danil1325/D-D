@@ -346,7 +346,7 @@ public sealed class QuestService : IQuestService
         await _playerQuestRepository.UpdateAsync(playerQuest);
 
         // A quest reaching Completed is the quest-completion achievement event.
-        await _achievementService.RegisterQuestCompletedAsync(character.Id);
+        await _achievementService.RegisterQuestCompletedAsync(character.Id, quest.Id);
 
         var experienceResult = await GrantExperienceAsync(character, quest.Rewards.Sum(r => r.Experience));
         var rewardEffects = await ApplyRewardEffectsAsync(session, character, progress, quest.Rewards, quest.ResultFlags);
@@ -757,7 +757,7 @@ public sealed class QuestService : IQuestService
                 // Locked -> Available is the location-unlock achievement event. Guarded
                 // by the pre-check above, so a location already unlocked elsewhere
                 // (e.g. an explicit reward) is never counted twice.
-                await _achievementService.RegisterLocationUnlockedAsync(character.Id);
+                await _achievementService.RegisterLocationUnlockedAsync(character.Id, locationId);
             }
 
             if (completed && !existing.Completed)
@@ -786,7 +786,7 @@ public sealed class QuestService : IQuestService
         progressByLocation[locationId] = created;
 
         // Inserting a brand-new Available row is also an unlock event.
-        await _achievementService.RegisterLocationUnlockedAsync(character.Id);
+        await _achievementService.RegisterLocationUnlockedAsync(character.Id, locationId);
     }
 
     // --- Gating checks ---

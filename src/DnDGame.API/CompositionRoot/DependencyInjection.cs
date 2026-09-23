@@ -255,6 +255,7 @@ public static class DependencyInjection
 
         services.AddScoped<IAchievementRepository, MockAchievementRepository>();
         services.AddScoped<IAchievementProgressRepository, MockAchievementProgressRepository>();
+        services.AddScoped<IAchievementEventRepository, MockAchievementEventRepository>();
 
         services.AddScoped<IAchievementService, AchievementService>();
 

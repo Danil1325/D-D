@@ -64,7 +64,7 @@ public sealed class ExplicitLocationUnlockService : IExplicitLocationUnlockServi
                 // A brand-new row is a Locked -> Available unlock — the event the
                 // locations-unlocked achievements track (see QuestService.Upsert... for
                 // the engine-driven counterpart that uses the same guard).
-                await _achievementService.RegisterLocationUnlockedAsync(character.Id);
+                await _achievementService.RegisterLocationUnlockedAsync(character.Id, locationId);
                 continue;
             }
 
@@ -77,7 +77,7 @@ public sealed class ExplicitLocationUnlockService : IExplicitLocationUnlockServi
             existing.UnlockedAtLevel ??= character.Level;
             await _locationProgressRepository.UpdateAsync(existing);
             newLocationIds.Add(locationId);
-            await _achievementService.RegisterLocationUnlockedAsync(character.Id);
+            await _achievementService.RegisterLocationUnlockedAsync(character.Id, locationId);
         }
 
         return newLocationIds;
