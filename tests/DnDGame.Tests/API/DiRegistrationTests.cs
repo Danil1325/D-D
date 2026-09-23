@@ -254,6 +254,8 @@ public class DiRegistrationTests
     [InlineData(typeof(ICardService))]
     [InlineData(typeof(IDeckService))]
     [InlineData(typeof(IAccountService))]
+    [InlineData(typeof(ICurrentPlayerService))]
+    [InlineData(typeof(ICharacterService))]
     public void MockData_ApplicationServicesResolve(Type serviceType)
     {
         using var provider = BuildAll();
@@ -272,6 +274,25 @@ public class DiRegistrationTests
         });
 
         AssertResolves(provider, typeof(IExplicitLocationUnlockService));
+    }
+
+    [Theory]
+    [InlineData(typeof(IScenarioService))]
+    [InlineData(typeof(IQuestService))]
+    [InlineData(typeof(ILocationService))]
+    [InlineData(typeof(ILocationProgressionService))]
+    [InlineData(typeof(IProgressionService))]
+    public void ScenarioServices_ApplicationServicesResolve(Type serviceType)
+    {
+        using var provider = Build(services =>
+        {
+            services.AddCardBattleServices();
+            services.AddBattleTurnSystemServices();
+            services.AddMockData();
+            services.AddScenarioServices();
+        });
+
+        AssertResolves(provider, serviceType);
     }
 
     /// <summary>
