@@ -33,6 +33,15 @@ public interface IAchievementService
     /// <summary>Progress keyed directly by a character id (used by tests and player-keyed endpoints).</summary>
     Task<PlayerAchievementsDto> GetProgressForPlayerAsync(int characterId);
 
+    /// <summary>
+    /// The current player's full catalog/progress view for the achievements screen,
+    /// after the game has been resumed. Same server-side player resolution and the
+    /// same 404 rule as <see cref="GetProgressForCurrentPlayerAsync"/>, but the
+    /// entries are grouped into locked / in-progress / unlocked buckets so the
+    /// frontend can render the three sections without client-side filtering.
+    /// </summary>
+    Task<AchievementsOverviewDto> GetOverviewForCurrentPlayerAsync();
+
     Task RegisterCharacterCreatedAsync(int characterId);
     Task RegisterQuestCompletedAsync(int characterId, int questId);
     Task RegisterBattleVictoryAsync(int characterId, int battleId);

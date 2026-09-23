@@ -49,6 +49,41 @@ public class AchievementService : IAchievementService
 
     public async Task<PlayerAchievementsDto> GetProgressForCurrentPlayerAsync()
     {
+        var characterId = await ResolveCurrentCharacterIdAsync();
+        return await GetProgressForPlayerAsync(characterId);
+    }
+
+    public async Task<AchievementsOverviewDto> GetOverviewForCurrentPlayerAsync()
+    {
+        var characterId = await ResolveCurrentCharacterIdAsync();
+        var rows = await BuildProgressRowsAsync(characterId);
+
+        return new AchievementsOverviewDto
+        {
+            PlayerId = characterId,
+            TotalCount = rows.Count,
+            CompletedCount = rows.Count(row => row.IsCompleted),
+            Locked = rows.Where(row => !row.IsCompleted && row.CurrentAmount == 0).ToList(),
+            InProgress = rows.Where(row => !row.IsCompleted && row.CurrentAmount > 0).ToList(),
+            Unlocked = rows.Where(row => row.IsCompleted).ToList()
+        };
+    }
+
+    public async Task<PlayerAchievementsDto> GetProgressForPlayerAsync(int characterId)
+    {
+        var rows = await BuildProgressRowsAsync(characterId);
+
+        return new PlayerAchievementsDto
+        {
+            PlayerId = characterId,
+            TotalCount = rows.Count,
+            CompletedCount = rows.Count(row => row.IsCompleted),
+            Achievements = rows
+        };
+    }
+
+    private async Task<int> ResolveCurrentCharacterIdAsync()
+    {
         var currentPlayerId = _currentPlayerService.GetCurrentPlayerId();
         var ownerId = currentPlayerId.ToString(CultureInfo.InvariantCulture);
         var characters = await _characterRepository.GetAllAsync();
@@ -58,29 +93,21 @@ public class AchievementService : IAchievementService
             throw new DomainException(ErrorCodes.NotFound, $"No character was found for player {currentPlayerId}.");
         }
 
-        return await GetProgressForPlayerAsync(character.Id);
+        return character.Id;
     }
 
-    public async Task<PlayerAchievementsDto> GetProgressForPlayerAsync(int characterId)
+    private async Task<List<PlayerAchievementDto>> BuildProgressRowsAsync(int characterId)
     {
         var achievements = await _achievementRepository.GetAllAsync();
         var progress = await _progressRepository.GetByPlayerIdAsync(characterId);
         var progressByAchievement = progress.ToDictionary(row => row.AchievementId);
 
-        var rows = achievements
+        return achievements
             .OrderBy(achievement => achievement.Id)
             .Select(achievement => PlayerAchievementDto.FromDomain(
                 achievement,
                 progressByAchievement.GetValueOrDefault(achievement.Id)))
             .ToList();
-
-        return new PlayerAchievementsDto
-        {
-            PlayerId = characterId,
-            TotalCount = rows.Count,
-            CompletedCount = rows.Count(row => row.IsCompleted),
-            Achievements = rows
-        };
     }
 
     public Task RegisterCharacterCreatedAsync(int characterId)

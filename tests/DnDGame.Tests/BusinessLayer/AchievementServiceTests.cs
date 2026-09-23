@@ -89,6 +89,98 @@ public class AchievementServiceTests
         Assert.Equal(ErrorCodes.NotFound, exception.ErrorCode);
     }
 
+    // --- Overview (the achievements screen after the game is resumed) ---
+
+    [Fact]
+    public async Task GetOverviewForCurrentPlayer_WhenNoCharacter_ThrowsNotFound()
+    {
+        var (service, _) = CreateService();
+
+        var exception = await Assert.ThrowsAsync<DomainException>(() => service.GetOverviewForCurrentPlayerAsync());
+
+        Assert.Equal(ErrorCodes.NotFound, exception.ErrorCode);
+    }
+
+    [Fact]
+    public async Task GetOverviewForCurrentPlayer_GroupsEveryAchievementIntoItsStateBucket()
+    {
+        var (service, store) = CreateService();
+        store.Characters.Add(new PlayerCharacter
+        {
+            Id = PlayerCharacterId,
+            OwnerId = MockCurrentPlayerService.MockPlayerId.ToString(),
+            Name = "Hero",
+            Level = 1,
+            RaceId = 1,
+            ClassId = 1
+        });
+
+        await service.RegisterCharacterCreatedAsync(PlayerCharacterId);
+        await service.RegisterQuestCompletedAsync(PlayerCharacterId, questId: 1);
+        await service.RegisterBattleVictoryAsync(PlayerCharacterId, battleId: 1);
+
+        var overview = await service.GetOverviewForCurrentPlayerAsync();
+
+        Assert.Equal(PlayerCharacterId, overview.PlayerId);
+        Assert.Equal(7, overview.TotalCount);
+        Assert.Equal(3, overview.CompletedCount);
+
+        // A_HERO_IS_BORN, FIRST_STEPS and FIRST_BLOOD reached their target.
+        Assert.Equal(new[] { "A_HERO_IS_BORN", "FIRST_STEPS", "FIRST_BLOOD" },
+            overview.Unlocked.Select(entry => entry.Code));
+        Assert.All(overview.Unlocked, entry => Assert.NotNull(entry.CompletedAt));
+        Assert.All(overview.Unlocked, entry => Assert.True(entry.IsCompleted));
+
+        // QUEST_CONQUEROR (1/5) and VICTORIOUS_WARRIOR (1/10) have progress but are not done.
+        Assert.Equal(new[] { "QUEST_CONQUEROR", "VICTORIOUS_WARRIOR" },
+            overview.InProgress.Select(entry => entry.Code));
+        Assert.All(overview.InProgress, entry => Assert.False(entry.IsCompleted));
+        Assert.All(overview.InProgress, entry => Assert.Null(entry.CompletedAt));
+
+        // No location has been unlocked, so WANDERER and EXPLORER are still locked.
+        Assert.Equal(new[] { "WANDERER", "EXPLORER" }, overview.Locked.Select(entry => entry.Code));
+        Assert.All(overview.Locked, entry => Assert.Equal(0, entry.CurrentAmount));
+
+        // Every catalog entry appears in exactly one bucket.
+        Assert.Equal(7, overview.Locked.Count + overview.InProgress.Count + overview.Unlocked.Count);
+    }
+
+    [Fact]
+    public async Task GetOverviewForCurrentPlayer_AfterResume_ReturnsTheSameProgress()
+    {
+        var (service, store) = CreateService();
+        store.Characters.Add(new PlayerCharacter
+        {
+            Id = PlayerCharacterId,
+            OwnerId = MockCurrentPlayerService.MockPlayerId.ToString(),
+            Name = "Hero",
+            Level = 1,
+            RaceId = 1,
+            ClassId = 1
+        });
+
+        await service.RegisterCharacterCreatedAsync(PlayerCharacterId);
+        await service.RegisterQuestCompletedAsync(PlayerCharacterId, questId: 1);
+        await service.RegisterQuestCompletedAsync(PlayerCharacterId, questId: 2);
+        var baseline = await service.GetOverviewForCurrentPlayerAsync();
+
+        // A page reload after resuming the game resolves a fresh scoped service
+        // over the same singleton store — exactly what the API does on the next
+        // GET /api/character/current + GET /api/achievements/overview.
+        var resumedService = CreateAchievementService(store, new MockCurrentPlayerService());
+        var afterResume = await resumedService.GetOverviewForCurrentPlayerAsync();
+
+        Assert.Equal(baseline.PlayerId, afterResume.PlayerId);
+        Assert.Equal(baseline.TotalCount, afterResume.TotalCount);
+        Assert.Equal(baseline.CompletedCount, afterResume.CompletedCount);
+        Assert.Equal(baseline.Locked.Select(entry => entry.Code), afterResume.Locked.Select(entry => entry.Code));
+        Assert.Equal(baseline.InProgress.Select(entry => entry.Code), afterResume.InProgress.Select(entry => entry.Code));
+        Assert.Equal(baseline.Unlocked.Select(entry => entry.Code), afterResume.Unlocked.Select(entry => entry.Code));
+        Assert.Equal(baseline.Unlocked.Select(entry => entry.CurrentAmount), afterResume.Unlocked.Select(entry => entry.CurrentAmount));
+        Assert.Equal(baseline.Unlocked.Select(entry => entry.CompletedAt), afterResume.Unlocked.Select(entry => entry.CompletedAt));
+        Assert.Equal(baseline.InProgress.Select(entry => entry.CurrentAmount), afterResume.InProgress.Select(entry => entry.CurrentAmount));
+    }
+
     // --- Thresholds ---
 
     [Fact]

@@ -40,4 +40,18 @@ public class AchievementController : ControllerBase
         var result = await _achievementService.GetProgressForCurrentPlayerAsync();
         return Ok(result);
     }
+
+    /// <summary>
+    /// The achievements screen payload, loadable after resuming the game: the whole
+    /// catalog with the current player's progress, grouped into locked / in-progress /
+    /// unlocked buckets. Same server-side player resolution (ICurrentPlayerService)
+    /// and same 404 rule as GET /api/character/current — the client never sends a
+    /// player id, so this works again on every page reload.
+    /// </summary>
+    [HttpGet("overview")]
+    public async Task<ActionResult<AchievementsOverviewDto>> GetOverview()
+    {
+        var result = await _achievementService.GetOverviewForCurrentPlayerAsync();
+        return Ok(result);
+    }
 }
