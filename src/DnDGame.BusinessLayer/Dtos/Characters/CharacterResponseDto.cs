@@ -1,4 +1,6 @@
 using System.Globalization;
+using DnDGame.BusinessLayer.Common.Errors;
+using DnDGame.BusinessLayer.Common.Exceptions;
 using DnDGame.Domain.Entities.Characters;
 
 namespace DnDGame.BusinessLayer.Dtos.Characters;
@@ -59,11 +61,11 @@ public class CharacterResponseDto
         // OwnerId stores the current player's id as text (resolved server-side from
         // ICurrentPlayerService — never client-supplied, never a hard-coded "1"), so
         // the integer player id the New Game screen keys progress by is parsed back
-        // here. It cannot be null in practice; the fallback keeps the transaction safe
-        // if a legacy row ever carries an empty OwnerId.
+        // here. A legacy row carrying an unparseable OwnerId is a corruption, not a
+        // "player 0" — surface it loudly instead of masking it with a default id.
         PlayerId = int.TryParse(character.OwnerId, NumberStyles.Integer, CultureInfo.InvariantCulture, out var playerId)
             ? playerId
-            : 0,
+            : throw new DomainException(ErrorCodes.InternalError, $"Character {character.Id} has an invalid internal player reference '{character.OwnerId}'."),
         Name = character.Name,
         RaceId = character.RaceId,
         RaceName = character.Race?.Name ?? string.Empty,

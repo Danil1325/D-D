@@ -108,6 +108,114 @@ public class CharacterServiceTests
     }
 
     [Fact]
+    public async Task CreateNewGameAsync_SetsOwnerToTheCurrentPlayer()
+    {
+        var (service, store) = CreateService();
+
+        var result = await service.CreateNewGameAsync(new NewGameCharacterRequestDto
+        {
+            Name = "Grommash",
+            Race = RaceType.Orc,
+            ClassId = 2
+        });
+
+        Assert.Equal(MockCurrentPlayerService.MockPlayerId, result.PlayerId);
+        var character = Assert.Single(store.Characters);
+        Assert.Equal("1", character.OwnerId);
+    }
+
+    [Fact]
+    public async Task GetCurrentAsync_AfterCreation_ReturnsTheCreatedCharacter()
+    {
+        var (service, _) = CreateService();
+        var created = await service.CreateNewGameAsync(new NewGameCharacterRequestDto
+        {
+            Name = "Grommash",
+            Race = RaceType.Orc,
+            ClassId = 2
+        });
+
+        var current = await service.GetCurrentAsync();
+
+        Assert.Equal(created.Id, current.Id);
+        Assert.Equal(created.PlayerId, current.PlayerId);
+        Assert.Equal("Grommash", current.Name);
+    }
+
+    [Fact]
+    public async Task GetCurrentAsync_FromANewServiceInstanceOverTheSameStore_ReturnsTheCreatedCharacter()
+    {
+        var (firstService, store) = CreateService();
+        var created = await firstService.CreateNewGameAsync(new NewGameCharacterRequestDto
+        {
+            Name = "Grommash",
+            Race = RaceType.Orc,
+            ClassId = 2
+        });
+
+        var (secondService, _) = CreateService(store);
+        var current = await secondService.GetCurrentAsync();
+
+        Assert.Equal(created.Id, current.Id);
+        Assert.Equal(created.PlayerId, current.PlayerId);
+        Assert.Equal("Grommash", current.Name);
+    }
+
+    [Fact]
+    public async Task GetCurrentAsync_WhenNoCharacterExists_ThrowsNotFound()
+    {
+        var (service, _) = CreateService();
+
+        var exception = await Assert.ThrowsAsync<DomainException>(() => service.GetCurrentAsync());
+
+        Assert.Equal(ErrorCodes.NotFound, exception.ErrorCode);
+    }
+
+    [Fact]
+    public async Task GetCurrentAsync_WhenOnlyAnotherPlayersCharacterExists_ThrowsNotFound()
+    {
+        var (service, store) = CreateService();
+        store.Characters.Add(new DnDGame.Domain.Entities.Characters.PlayerCharacter
+        {
+            Id = 7,
+            OwnerId = "2",
+            Name = "Borrowed",
+            Level = 1,
+            MaxHealth = 20,
+            CurrentHealth = 20,
+            RaceId = 1,
+            ClassId = 1
+        });
+
+        var exception = await Assert.ThrowsAsync<DomainException>(() => service.GetCurrentAsync());
+
+        Assert.Equal(ErrorCodes.NotFound, exception.ErrorCode);
+    }
+
+    [Fact]
+    public async Task GetByIdAsync_WhenOwnerIdIsCorrupted_ThrowsInternalErrorInsteadOfMaskingWithPlayerZero()
+    {
+        var (service, store) = CreateService();
+        var character = new DnDGame.Domain.Entities.Characters.PlayerCharacter
+        {
+            Id = 5,
+            OwnerId = "not-an-int",
+            Name = "Corrupted",
+            Level = 1,
+            MaxHealth = 20,
+            CurrentHealth = 20,
+            RaceId = 1,
+            ClassId = 1
+        };
+        store.Characters.Add(character);
+
+        var exception = await Assert.ThrowsAsync<DomainException>(() => service.GetByIdAsync(character.Id));
+
+        Assert.Equal(ErrorCodes.InternalError, exception.ErrorCode);
+        Assert.Contains(character.Id.ToString(), exception.Message);
+    }
+
+    [Fact]
     public async Task GetOptionsAsync_ReturnsSeededRacesAndClasses()
     {
         var (service, _) = CreateService();
@@ -123,9 +231,9 @@ public class CharacterServiceTests
         Assert.NotEmpty(warrior.PrimaryAttribute);
     }
 
-    private static (CharacterService Service, InMemoryGameDataStore Store) CreateService()
+    private static (CharacterService Service, InMemoryGameDataStore Store) CreateService(InMemoryGameDataStore? store = null)
     {
-        var store = MockDataBootstrapper.CreateSeededStore();
+        store ??= MockDataBootstrapper.CreateSeededStore();
         var service = new CharacterService(
             new MockCharacterRepository(store),
             new MockRaceRepository(store),

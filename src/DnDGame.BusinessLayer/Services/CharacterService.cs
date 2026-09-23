@@ -97,6 +97,21 @@ public class CharacterService : ICharacterService
         return CharacterResponseDto.FromDomain(character, portrait?.ImagePath);
     }
 
+    public async Task<CharacterResponseDto> GetCurrentAsync()
+    {
+        var playerId = _currentPlayerService.GetCurrentPlayerId();
+        var ownerId = playerId.ToString(CultureInfo.InvariantCulture);
+        var characters = await _characterRepository.GetAllAsync();
+        var character = characters.FirstOrDefault(candidate => candidate.OwnerId == ownerId);
+        if (character is null)
+        {
+            throw new DomainException(ErrorCodes.NotFound, $"No character was found for player {playerId}.");
+        }
+
+        var portrait = await _portraitRepository.GetByRaceAndClassAsync(character.RaceId, character.ClassId);
+        return CharacterResponseDto.FromDomain(character, portrait?.ImagePath);
+    }
+
     private async Task EnsurePlayerHasNoCharacterAsync(string ownerId)
     {
         var characters = await _characterRepository.GetAllAsync();

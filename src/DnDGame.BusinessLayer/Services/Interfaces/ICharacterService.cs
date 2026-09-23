@@ -21,4 +21,15 @@ public interface ICharacterService
 
     /// <summary>Returns the character with the given id, or null if it does not exist.</summary>
     Task<CharacterResponseDto?> GetByIdAsync(int id);
+
+    /// <summary>
+    /// The current player's character — the one every New Game screen navigation
+    /// and the frontend's "resume" flow keys progress by. Resolves the player
+    /// server-side via <see cref="ICurrentPlayerService"/> and matches the character
+    /// by its OwnerId, so the client never has to supply or persist a player id.
+    /// </summary>
+    /// <exception cref="DomainException">
+    /// Thrown with ErrorCodes.NotFound when the current player has no character.
+    /// </exception>
+    Task<CharacterResponseDto> GetCurrentAsync();
 }

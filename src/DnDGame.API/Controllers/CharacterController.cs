@@ -31,6 +31,18 @@ public class CharacterController : ControllerBase
         return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
     }
 
+    /// <summary>
+    /// The current player's character — the reload/"resume" entry point. Resolves
+    /// the player server-side via ICurrentPlayerService, so the client does not
+    /// need to persist or re-send a player id after a page reload.
+    /// </summary>
+    [HttpGet("current")]
+    public async Task<ActionResult<CharacterResponseDto>> GetCurrent()
+    {
+        var result = await _characterService.GetCurrentAsync();
+        return Ok(result);
+    }
+
     /// <summary>Returns a created character by id.</summary>
     [HttpGet("{id:int}")]
     public async Task<ActionResult<CharacterResponseDto>> GetById(int id)
