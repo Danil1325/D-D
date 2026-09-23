@@ -1,3 +1,4 @@
+using System.Globalization;
 using DnDGame.Domain.Entities.Characters;
 
 namespace DnDGame.BusinessLayer.Dtos.Characters;
@@ -10,6 +11,14 @@ namespace DnDGame.BusinessLayer.Dtos.Characters;
 public class CharacterResponseDto
 {
     public int Id { get; init; }
+
+    /// <summary>
+    /// The id of the player/account this character belongs to (its OwnerId). Every
+    /// New Game screen navigation and the frontend's "resume" flow keys progress by
+    /// this value, so the creation response returns it alongside <see cref="Id"/>.
+    /// </summary>
+    public int PlayerId { get; init; }
+
     public string Name { get; init; } = string.Empty;
 
     public int RaceId { get; init; }
@@ -46,6 +55,15 @@ public class CharacterResponseDto
     public static CharacterResponseDto FromDomain(PlayerCharacter character, string? portraitPath) => new()
     {
         Id = character.Id,
+
+        // OwnerId stores the current player's id as text (resolved server-side from
+        // ICurrentPlayerService — never client-supplied, never a hard-coded "1"), so
+        // the integer player id the New Game screen keys progress by is parsed back
+        // here. It cannot be null in practice; the fallback keeps the transaction safe
+        // if a legacy row ever carries an empty OwnerId.
+        PlayerId = int.TryParse(character.OwnerId, NumberStyles.Integer, CultureInfo.InvariantCulture, out var playerId)
+            ? playerId
+            : 0,
         Name = character.Name,
         RaceId = character.RaceId,
         RaceName = character.Race?.Name ?? string.Empty,
