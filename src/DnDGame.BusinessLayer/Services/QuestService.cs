@@ -29,6 +29,7 @@ public sealed class QuestService : IQuestService
     private readonly ILocationUnlockEngine _locationUnlockEngine;
     private readonly ILocationRouteProvider _locationRouteProvider;
     private readonly IExplicitLocationUnlockService _explicitLocationUnlockService;
+    private readonly IAchievementService _achievementService;
 
     public QuestService(
         IQuestRepository questRepository,
@@ -41,7 +42,8 @@ public sealed class QuestService : IQuestService
         ILocationProgressRepository locationProgressRepository,
         ILocationUnlockEngine locationUnlockEngine,
         ILocationRouteProvider locationRouteProvider,
-        IExplicitLocationUnlockService explicitLocationUnlockService)
+        IExplicitLocationUnlockService explicitLocationUnlockService,
+        IAchievementService achievementService)
     {
         _questRepository = questRepository;
         _playerQuestRepository = playerQuestRepository;
@@ -54,6 +56,7 @@ public sealed class QuestService : IQuestService
         _locationUnlockEngine = locationUnlockEngine;
         _locationRouteProvider = locationRouteProvider;
         _explicitLocationUnlockService = explicitLocationUnlockService;
+        _achievementService = achievementService;
     }
 
     public async Task<IReadOnlyList<QuestView>> GetAvailableQuestsAsync(
@@ -341,6 +344,9 @@ public sealed class QuestService : IQuestService
         playerQuest.Status = QuestStatus.Completed;
         playerQuest.CompletedAt = DateTime.UtcNow;
         await _playerQuestRepository.UpdateAsync(playerQuest);
+
+        // A quest reaching Completed is the quest-completion achievement event.
+        await _achievementService.RegisterQuestCompletedAsync(character.Id, quest.Id);
 
         var experienceResult = await GrantExperienceAsync(character, quest.Rewards.Sum(r => r.Experience));
         var rewardEffects = await ApplyRewardEffectsAsync(session, character, progress, quest.Rewards, quest.ResultFlags);
@@ -747,6 +753,11 @@ public sealed class QuestService : IQuestService
                 existing.Status = LocationStatus.Available;
                 existing.UnlockedAtLevel ??= character.Level;
                 changed = true;
+
+                // Locked -> Available is the location-unlock achievement event. Guarded
+                // by the pre-check above, so a location already unlocked elsewhere
+                // (e.g. an explicit reward) is never counted twice.
+                await _achievementService.RegisterLocationUnlockedAsync(character.Id, locationId);
             }
 
             if (completed && !existing.Completed)
@@ -773,6 +784,9 @@ public sealed class QuestService : IQuestService
         };
         await _locationProgressRepository.AddAsync(created);
         progressByLocation[locationId] = created;
+
+        // Inserting a brand-new Available row is also an unlock event.
+        await _achievementService.RegisterLocationUnlockedAsync(character.Id, locationId);
     }
 
     // --- Gating checks ---

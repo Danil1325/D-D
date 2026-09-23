@@ -11,13 +11,16 @@ public sealed class ExplicitLocationUnlockService : IExplicitLocationUnlockServi
 {
     private readonly ILocationDefinitionRepository _locationDefinitionRepository;
     private readonly ILocationProgressRepository _locationProgressRepository;
+    private readonly IAchievementService _achievementService;
 
     public ExplicitLocationUnlockService(
         ILocationDefinitionRepository locationDefinitionRepository,
-        ILocationProgressRepository locationProgressRepository)
+        ILocationProgressRepository locationProgressRepository,
+        IAchievementService achievementService)
     {
         _locationDefinitionRepository = locationDefinitionRepository;
         _locationProgressRepository = locationProgressRepository;
+        _achievementService = achievementService;
     }
 
     public async Task<IReadOnlyList<LocationId>> UnlockExplicitLocationsAsync(
@@ -57,6 +60,11 @@ public sealed class ExplicitLocationUnlockService : IExplicitLocationUnlockServi
                     UnlockedAtLevel = character.Level
                 });
                 newLocationIds.Add(locationId);
+
+                // A brand-new row is a Locked -> Available unlock — the event the
+                // locations-unlocked achievements track (see QuestService.Upsert... for
+                // the engine-driven counterpart that uses the same guard).
+                await _achievementService.RegisterLocationUnlockedAsync(character.Id, locationId);
                 continue;
             }
 
@@ -69,6 +77,7 @@ public sealed class ExplicitLocationUnlockService : IExplicitLocationUnlockServi
             existing.UnlockedAtLevel ??= character.Level;
             await _locationProgressRepository.UpdateAsync(existing);
             newLocationIds.Add(locationId);
+            await _achievementService.RegisterLocationUnlockedAsync(character.Id, locationId);
         }
 
         return newLocationIds;

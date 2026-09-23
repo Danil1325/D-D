@@ -6,6 +6,7 @@ using DnDGame.Domain.Entities.Characters;
 using DnDGame.Domain.Entities.Locations;
 using DnDGame.MockData;
 using DnDGame.MockData.Repositories;
+using DnDGame.MockData.Services;
 
 namespace DnDGame.Tests.BusinessLayer;
 
@@ -128,7 +129,13 @@ public class ExplicitLocationUnlockServiceTests
         return (
             new ExplicitLocationUnlockService(
                 new MockLocationDefinitionRepository(store),
-                new MockLocationProgressRepository(store)),
+                new MockLocationProgressRepository(store),
+                new AchievementService(
+                    new MockAchievementRepository(store),
+                    new MockAchievementProgressRepository(store),
+                    new MockAchievementEventRepository(store),
+                    new MockCharacterRepository(store),
+                    new MockCurrentPlayerService())),
             store,
             character);
     }

@@ -253,6 +253,12 @@ public static class DependencyInjection
         services.AddScoped<ILocationEncounterRepository, MockLocationEncounterRepository>();
         services.AddScoped<ILocationProgressRepository, MockLocationProgressRepository>();
 
+        services.AddScoped<IAchievementRepository, MockAchievementRepository>();
+        services.AddScoped<IAchievementProgressRepository, MockAchievementProgressRepository>();
+        services.AddScoped<IAchievementEventRepository, MockAchievementEventRepository>();
+
+        services.AddScoped<IAchievementService, AchievementService>();
+
         services.AddScoped<ICurrentPlayerService, MockCurrentPlayerService>();
         services.AddScoped<ICharacterService, CharacterService>();
         services.AddScoped<ICardService, CardService>();

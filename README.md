@@ -93,6 +93,40 @@ mapping):
 - `POST /api/auth/register`, `POST /api/auth/login`, `POST /api/auth/logout`,
   `GET /api/auth/me` — cookie-based authentication (see "Authentication" below and
   `docs/ARCHITECTURE.md` §19).
+- `GET /api/achievements` — the seeded achievements catalog (7 medals), no player data.
+- `GET /api/achievements/current` — the catalog with the current player's flat
+  progress. 404 when the current player has no character yet (same rule as
+  `GET /api/character/current`).
+- `GET /api/achievements/overview` — the achievements screen payload for the
+  current player after resuming the game. The whole catalog grouped into
+  `locked` / `inProgress` / `unlocked` buckets. The player is resolved
+  server-side via `ICurrentPlayerService` exactly like `GET /api/character/current`
+  (client never sends a player id), so it returns the same data again after a page
+  reload — nothing is recomputed client-side. Response shape (entry fields are the
+  catalog fields plus progress; `type` is the `AchievementType` enum value, 1
+  creation / 2 quests / 3 battles / 4 location unlocks):
+
+  ```json
+  {
+    "playerId": 1,
+    "totalCount": 7,
+    "completedCount": 1,
+    "locked": [
+      { "id": 301, "code": "FIRST_BLOOD", "title": "First Blood", "description": "Win your first battle.", "type": 3, "targetAmount": 1, "currentAmount": 0, "isCompleted": false, "completedAt": null }
+    ],
+    "inProgress": [
+      { "id": 202, "code": "QUEST_CONQUEROR", "title": "Quest Conqueror", "description": "Complete 5 quests.", "type": 2, "targetAmount": 5, "currentAmount": 1, "isCompleted": false, "completedAt": null }
+    ],
+    "unlocked": [
+      { "id": 101, "code": "A_HERO_IS_BORN", "title": "A Hero Is Born", "description": "Head out on your first journey by creating a character.", "type": 1, "targetAmount": 1, "currentAmount": 1, "isCompleted": true, "completedAt": "2026-09-23T12:34:56Z" }
+    ]
+  }
+  ```
+
+  Bucket semantics: `locked` = no progress at all (render greyed out),
+  `inProgress` = `0 < currentAmount < targetAmount` (render a progress bar),
+  `unlocked` = target reached, `completedAt` is the unlock timestamp. The buckets
+  partition the catalog: each achievement appears in exactly one bucket.
 
 No controllers exist yet for Character, Adventure/story-graph, or GameSession.
 

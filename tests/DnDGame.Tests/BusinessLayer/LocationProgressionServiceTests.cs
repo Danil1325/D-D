@@ -9,6 +9,7 @@ using DnDGame.Domain.Entities.Game;
 using DnDGame.Domain.Enums;
 using DnDGame.MockData;
 using DnDGame.MockData.Repositories;
+using DnDGame.MockData.Services;
 
 namespace DnDGame.Tests.BusinessLayer;
 
@@ -616,7 +617,13 @@ public class LocationProgressionServiceTests
             locationRepository,
             new ExplicitLocationUnlockService(
                 new MockLocationDefinitionRepository(store),
-                new MockLocationProgressRepository(store)));
+                new MockLocationProgressRepository(store),
+                new AchievementService(
+                    new MockAchievementRepository(store),
+                    new MockAchievementProgressRepository(store),
+                    new MockAchievementEventRepository(store),
+                    characterRepository,
+                    new MockCurrentPlayerService())));
 
         return new LocationProgressionService(
             locationRepository,

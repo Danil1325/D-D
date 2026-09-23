@@ -34,6 +34,7 @@ public class BattleService : IBattleService
     private readonly ICurrentPlayerService _currentPlayerService;
     private readonly ICombatExperienceCalculator _combatExperienceCalculator;
     private readonly ILocationEncounterService _locationEncounterService;
+    private readonly IAchievementService _achievementService;
 
     public BattleService(
         IBattleRepository battleRepository,
@@ -48,7 +49,8 @@ public class BattleService : IBattleService
         PlayRules playRules,
         ICurrentPlayerService currentPlayerService,
         ICombatExperienceCalculator combatExperienceCalculator,
-        ILocationEncounterService locationEncounterService)
+        ILocationEncounterService locationEncounterService,
+        IAchievementService achievementService)
     {
         _battleRepository = battleRepository;
         _battleDeckRepository = battleDeckRepository;
@@ -63,6 +65,7 @@ public class BattleService : IBattleService
         _currentPlayerService = currentPlayerService;
         _combatExperienceCalculator = combatExperienceCalculator;
         _locationEncounterService = locationEncounterService;
+        _achievementService = achievementService;
     }
 
     public async Task<BattleStateDto> StartBattleAsync(StartBattleRequestDto request)
@@ -350,6 +353,14 @@ public class BattleService : IBattleService
     {
         if (battle.Status != GameSessionStatus.Victory)
             return;
+
+        // RewardsGranted flips to true exactly once — on the action that wins the
+        // battle — and every later evaluation of the same battle skips this, so the
+        // victory achievement event fires once per battle, never per re-evaluation.
+        if (!battle.RewardsGranted)
+        {
+            await _achievementService.RegisterBattleVictoryAsync(player.Id, battle.Id);
+        }
 
         var session = await _gameSessionRepository.GetByIdAsync(battle.GameSessionId);
         if (session is null)

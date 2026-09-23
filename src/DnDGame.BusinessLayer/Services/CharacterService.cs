@@ -27,19 +27,22 @@ public class CharacterService : ICharacterService
     private readonly IClassRepository _classRepository;
     private readonly ICharacterPortraitRepository _portraitRepository;
     private readonly ICurrentPlayerService _currentPlayerService;
+    private readonly IAchievementService _achievementService;
 
     public CharacterService(
         ICharacterRepository characterRepository,
         IRaceRepository raceRepository,
         IClassRepository classRepository,
         ICharacterPortraitRepository portraitRepository,
-        ICurrentPlayerService currentPlayerService)
+        ICurrentPlayerService currentPlayerService,
+        IAchievementService achievementService)
     {
         _characterRepository = characterRepository;
         _raceRepository = raceRepository;
         _classRepository = classRepository;
         _portraitRepository = portraitRepository;
         _currentPlayerService = currentPlayerService;
+        _achievementService = achievementService;
     }
 
     public async Task<CharacterResponseDto> CreateNewGameAsync(NewGameCharacterRequestDto request)
@@ -70,6 +73,9 @@ public class CharacterService : ICharacterService
 
         var created = await _characterRepository.AddAsync(character);
         var portrait = await _portraitRepository.GetByRaceAndClassAsync(race.Id, characterClass.Id);
+
+        // Character creation is itself an achievement event (Type.CharacterCreated).
+        await _achievementService.RegisterCharacterCreatedAsync(created.Id);
         return CharacterResponseDto.FromDomain(created, portrait?.ImagePath);
     }
 
