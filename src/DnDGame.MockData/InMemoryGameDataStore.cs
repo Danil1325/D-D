@@ -1,6 +1,7 @@
 using DnDGame.Domain.Entities.Accounts;
 using DnDGame.Domain.Entities.Achievements;
 using DnDGame.Domain.Entities.Characters;
+using DnDGame.Domain.Entities.Collection;
 using DnDGame.Domain.Entities.Cards;
 using DnDGame.Domain.Entities.Classes;
 using DnDGame.Domain.Entities.Enemies;
@@ -47,6 +48,7 @@ public class InMemoryGameDataStore
     public List<Card> Cards { get; } = new();
     public List<Achievement> Achievements { get; } = new();
     public List<SkillDefinition> SkillDefinitions { get; } = new();
+    public List<CollectionEntry> CollectionEntries { get; } = new();
 
     // --- Runtime / gameplay data (empty until Phase 3 starts creating characters) ---
     public List<PlayerCharacter> Characters { get; } = new();

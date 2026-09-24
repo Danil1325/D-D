@@ -267,6 +267,9 @@ public static class DependencyInjection
         services.AddScoped<ICharacterSkillRepository, MockCharacterSkillRepository>();
         services.AddScoped<ISkillService, SkillService>();
 
+        services.AddScoped<ICollectionRepository, MockCollectionRepository>();
+        services.AddScoped<ICollectionService, CollectionService>();
+
         services.AddScoped<ICurrentPlayerService, MockCurrentPlayerService>();
         services.AddScoped<ICharacterService, CharacterService>();
         services.AddScoped<ICardService, CardService>();
