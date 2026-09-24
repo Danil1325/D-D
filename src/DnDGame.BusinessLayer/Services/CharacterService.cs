@@ -22,6 +22,9 @@ public class CharacterService : ICharacterService
     private const int MinimumNameLength = 2;
     private const int MaximumNameLength = 40;
 
+    /// <summary>Starting Shop currency for a new character, matching the frontend mock's starting balance (src/pages/Shop/Shop.tsx).</summary>
+    private const int StartingGold = 1250;
+
     private readonly ICharacterRepository _characterRepository;
     private readonly IRaceRepository _raceRepository;
     private readonly IClassRepository _classRepository;
@@ -67,6 +70,7 @@ public class CharacterService : ICharacterService
             Level = 1,
             CurrentXp = 0,
             SkillPoints = 0,
+            Gold = StartingGold,
             CreatedAt = DateTime.UtcNow
         };
         RollStartingAttributes(character, race);

@@ -9,6 +9,7 @@ using DnDGame.Domain.Entities.Game;
 using DnDGame.Domain.Entities.Locations;
 using DnDGame.Domain.Entities.Portraits;
 using DnDGame.Domain.Entities.Races;
+using DnDGame.Domain.Entities.Shop;
 using DnDGame.Domain.Entities.Skills;
 using DnDGame.Domain.Entities.Talents;
 
@@ -49,6 +50,7 @@ public class InMemoryGameDataStore
     public List<Achievement> Achievements { get; } = new();
     public List<SkillDefinition> SkillDefinitions { get; } = new();
     public List<CollectionEntry> CollectionEntries { get; } = new();
+    public List<ShopItem> ShopItems { get; } = new();
 
     // --- Runtime / gameplay data (empty until Phase 3 starts creating characters) ---
     public List<PlayerCharacter> Characters { get; } = new();
@@ -86,6 +88,10 @@ public class InMemoryGameDataStore
     // --- Runtime / gameplay data (empty until a PlayerCharacter unlocks a skill
     // — see SkillService.UnlockSkillForCurrentPlayerAsync) ---
     public List<CharacterSkillUnlock> CharacterSkillUnlocks { get; } = new();
+
+    // --- Runtime / gameplay data (empty until a PlayerCharacter buys a Shop item
+    // — see ShopService.BuyItemForCurrentPlayerAsync) ---
+    public List<CharacterInventoryEntry> CharacterInventoryEntries { get; } = new();
 
     // --- Auth data (empty until someone registers). Deliberately not linked to
     // Characters — there is no Account-to-PlayerCharacter relationship yet.
