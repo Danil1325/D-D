@@ -246,6 +246,8 @@ public class DiRegistrationTests
     [InlineData(typeof(IAccountRepository))]
     [InlineData(typeof(IAchievementRepository))]
     [InlineData(typeof(IAchievementProgressRepository))]
+    [InlineData(typeof(ISkillDefinitionRepository))]
+    [InlineData(typeof(ICharacterSkillRepository))]
     public void MockData_AllRepositoriesResolve(Type serviceType)
     {
         using var provider = BuildAll();
@@ -259,6 +261,7 @@ public class DiRegistrationTests
     [InlineData(typeof(ICurrentPlayerService))]
     [InlineData(typeof(ICharacterService))]
     [InlineData(typeof(IAchievementService))]
+    [InlineData(typeof(ISkillService))]
     public void MockData_ApplicationServicesResolve(Type serviceType)
     {
         using var provider = BuildAll();

@@ -8,6 +8,7 @@ using DnDGame.Domain.Entities.Game;
 using DnDGame.Domain.Entities.Locations;
 using DnDGame.Domain.Entities.Portraits;
 using DnDGame.Domain.Entities.Races;
+using DnDGame.Domain.Entities.Skills;
 using DnDGame.Domain.Entities.Talents;
 
 namespace DnDGame.MockData;
@@ -45,6 +46,7 @@ public class InMemoryGameDataStore
     public List<Choice> Choices { get; } = new();
     public List<Card> Cards { get; } = new();
     public List<Achievement> Achievements { get; } = new();
+    public List<SkillDefinition> SkillDefinitions { get; } = new();
 
     // --- Runtime / gameplay data (empty until Phase 3 starts creating characters) ---
     public List<PlayerCharacter> Characters { get; } = new();
@@ -78,6 +80,10 @@ public class InMemoryGameDataStore
     // --- Runtime / gameplay data (empty until the first real game event is
     // counted toward an achievement — the exactly-once ledger) ---
     public List<AchievementEvent> AchievementEvents { get; } = new();
+
+    // --- Runtime / gameplay data (empty until a PlayerCharacter unlocks a skill
+    // — see SkillService.UnlockSkillForCurrentPlayerAsync) ---
+    public List<CharacterSkillUnlock> CharacterSkillUnlocks { get; } = new();
 
     // --- Auth data (empty until someone registers). Deliberately not linked to
     // Characters — there is no Account-to-PlayerCharacter relationship yet.

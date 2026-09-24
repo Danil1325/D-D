@@ -134,6 +134,10 @@ public static class DependencyInjection
             // Character-creation codes (see CharacterService).
             mapper.Register(CharacterErrorCodes.RaceNotFound, StatusCodes.Status404NotFound);
             mapper.Register(CharacterErrorCodes.ClassNotFound, StatusCodes.Status404NotFound);
+
+            // Skill-tree unlock codes (see SkillService).
+            mapper.Register(SkillErrorCodes.SkillAlreadyUnlocked, StatusCodes.Status409Conflict);
+            mapper.Register(SkillErrorCodes.InsufficientSkillPoints, StatusCodes.Status400BadRequest);
             return mapper;
         });
 
@@ -258,6 +262,10 @@ public static class DependencyInjection
         services.AddScoped<IAchievementEventRepository, MockAchievementEventRepository>();
 
         services.AddScoped<IAchievementService, AchievementService>();
+
+        services.AddScoped<ISkillDefinitionRepository, MockSkillDefinitionRepository>();
+        services.AddScoped<ICharacterSkillRepository, MockCharacterSkillRepository>();
+        services.AddScoped<ISkillService, SkillService>();
 
         services.AddScoped<ICurrentPlayerService, MockCurrentPlayerService>();
         services.AddScoped<ICharacterService, CharacterService>();
