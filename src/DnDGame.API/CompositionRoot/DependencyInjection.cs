@@ -134,6 +134,14 @@ public static class DependencyInjection
             // Character-creation codes (see CharacterService).
             mapper.Register(CharacterErrorCodes.RaceNotFound, StatusCodes.Status404NotFound);
             mapper.Register(CharacterErrorCodes.ClassNotFound, StatusCodes.Status404NotFound);
+
+            // Skill-tree unlock codes (see SkillService).
+            mapper.Register(SkillErrorCodes.SkillAlreadyUnlocked, StatusCodes.Status409Conflict);
+            mapper.Register(SkillErrorCodes.InsufficientSkillPoints, StatusCodes.Status400BadRequest);
+
+            // Shop buy/sell codes (see ShopService).
+            mapper.Register(ShopErrorCodes.InsufficientGold, StatusCodes.Status400BadRequest);
+            mapper.Register(ShopErrorCodes.InsufficientItemQuantity, StatusCodes.Status400BadRequest);
             return mapper;
         });
 
@@ -258,6 +266,17 @@ public static class DependencyInjection
         services.AddScoped<IAchievementEventRepository, MockAchievementEventRepository>();
 
         services.AddScoped<IAchievementService, AchievementService>();
+
+        services.AddScoped<ISkillDefinitionRepository, MockSkillDefinitionRepository>();
+        services.AddScoped<ICharacterSkillRepository, MockCharacterSkillRepository>();
+        services.AddScoped<ISkillService, SkillService>();
+
+        services.AddScoped<ICollectionRepository, MockCollectionRepository>();
+        services.AddScoped<ICollectionService, CollectionService>();
+
+        services.AddScoped<IShopItemRepository, MockShopItemRepository>();
+        services.AddScoped<ICharacterInventoryRepository, MockCharacterInventoryRepository>();
+        services.AddScoped<IShopService, ShopService>();
 
         services.AddScoped<ICurrentPlayerService, MockCurrentPlayerService>();
         services.AddScoped<ICharacterService, CharacterService>();

@@ -49,6 +49,9 @@ public class PlayerCharacter : BaseEntity
     public int CurrentXp { get; set; }
     public int SkillPoints { get; set; }
 
+    /// <summary>Spendable currency for the Shop feature. Set at creation; earning gold outside purchases/sales isn't modeled yet.</summary>
+    public int Gold { get; set; }
+
     public DateTime CreatedAt { get; set; }
 
     public ICollection<CharacterTalent> Talents { get; set; } = new List<CharacterTalent>();
